@@ -78,7 +78,8 @@
             <option value="cloudflare">Cloudflare</option>
           </select>
         </label>
-        <label class="field"><span data-i18n="api.domain">Domain</span><input id="apiDomain" type="text" placeholder="example.com" autocomplete="off"></label>
+        <label class="field"><span data-i18n="api.sourceDomain">Source domain</span><input id="apiDomain" type="text" placeholder="a.asia" autocomplete="off"></label>
+        <label class="field"><span data-i18n="api.targetDomain">Target domain</span><input id="apiTargetDomain" type="text" data-i18n-placeholder="api.targetPlaceholder" placeholder="same as source" autocomplete="off"></label>
       </div>
       <div class="provider-row" id="dnspodCreds">
         <label class="field"><span>DNSPod SecretId</span><input id="dnspodSecretId" type="password" autocomplete="off"></label>
@@ -97,6 +98,10 @@
         <button id="apiPreview" class="secondary" data-i18n="api.preview">Preview write (dry-run)</button>
         <button id="apiVerify" class="secondary" data-i18n="api.verify">Verify DNS</button>
         <button id="apiApply" class="secondary" data-i18n="api.apply">Apply to Cloudflare</button>
+      </div>
+      <div class="actions">
+        <button id="apiSaveProfile" class="secondary" data-i18n="api.saveProfile">Save as profile</button>
+        <label class="filebtn"><span data-i18n="api.loadProfile">Load profile</span><input id="profileFile" type="file" accept=".json,application/json"></label>
       </div>
       <div id="apiStatus" class="state" style="margin-top:8px"></div>
       <div id="apiActions"></div>
@@ -136,6 +141,7 @@
         <button id="downloadBind" data-i18n="export.bind">Download Cloudflare zone file</button>
         <button id="downloadCsv" class="secondary" data-i18n="export.csv">Download CSV</button>
         <button id="downloadReport" class="secondary" data-i18n="export.report">Download migration report (HTML)</button>
+        <button id="downloadProfile" class="secondary" data-i18n="export.profile">Save as profile (JSON)</button>
       </div>
       <p class="hint" data-i18n="export.hint">Cloudflare: Dashboard → DNS → Records → Import. Review the file before importing; the export is generated from the parsed records, not from your provider's API.</p>
     </div>

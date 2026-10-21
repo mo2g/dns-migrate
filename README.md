@@ -33,6 +33,8 @@ DNS Migrate focuses on the **safety layer**: a readable diff report, a pre-fligh
 - EN / 中文 interface switch
 - **API mode (optional, Pages Functions)**: read records directly from DNSPod (Tencent Cloud TC3) or Cloudflare, preview a dry-run plan, then apply to Cloudflare with explicit confirmation
 - **Verify**: check records against public DNS-over-HTTPS after applying (`/api/verify`, `dnsmigrate verify`)
+- **DNS Profiles**: save a zone as a reusable, domain-independent template and apply it to new domains (ideal for annual domain rotation / domain portfolios)
+- **Cross-domain copy**: copy `a.asia` to `b.asia` with automatic record-name and value rewriting
 - **CLI companion** (`cli/dnsmigrate.mjs`): export / plan / apply / verify / bulk migrate from the terminal
 - **Bulk migration**: migrate multiple domains in one command with a dry-run summary per zone
 - 100% client-side in file mode: no data leaves the browser, no API tokens involved
@@ -80,6 +82,18 @@ CF_API_TOKEN=... CF_ACCOUNT_ID=... \
 
 # Verify records against public DNS (no credentials; uses DoH)
 node cli/dnsmigrate.mjs verify --domain example.com --records records.json
+
+# Save a reusable profile (annual domain rotation)
+CF_API_TOKEN=... CF_ACCOUNT_ID=... \
+  node cli/dnsmigrate.mjs profile save --source cloudflare --domain a.asia --out profile.json
+
+# Apply the profile to a new domain (dry-run; add --yes, optionally --verify)
+CF_API_TOKEN=... CF_ACCOUNT_ID=... \
+  node cli/dnsmigrate.mjs profile apply --profile profile.json --domain b.asia --yes --verify
+
+# Apply one profile to many new domains
+CF_API_TOKEN=... CF_ACCOUNT_ID=... \
+  node cli/dnsmigrate.mjs profile apply --profile profile.json --domains b.asia,c.asia
 
 # Bulk migrate multiple domains (dry-run; add --yes to write)
 CF_API_TOKEN=... CF_ACCOUNT_ID=... DNSPOD_SECRET_ID=... DNSPOD_SECRET_KEY=... \

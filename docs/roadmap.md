@@ -30,4 +30,5 @@
 
 - [x] CLI companion (`cli/dnsmigrate.mjs`: export / plan / apply / migrate)
 - [x] Multi-zone / bulk migration (CLI)
+- [x] DNS Profiles (domain-independent templates + cross-domain apply)
 - [ ] Multi-tenant MSP mode (paid)

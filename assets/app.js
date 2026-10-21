@@ -45,7 +45,7 @@ const I18N = {
     "provider.target": "Target provider", "provider.zoneName": "Zone name",
     "api.title": "API mode (optional)",
     "api.sub": "Read records directly from your provider and write to Cloudflare. Credentials are used only for this request — never stored or logged.",
-    "api.source": "Source provider", "api.domain": "Domain",
+    "api.source": "Source provider", "api.sourceDomain": "Source domain", "api.targetDomain": "Target domain", "api.targetPlaceholder": "same as source (copy)",
     "api.read": "Read records", "api.preview": "Preview write (dry-run)", "api.apply": "Apply to Cloudflare",
     "api.security": "Use least-privilege tokens. Credentials are sent only to this site's /api endpoint, used for this request, and never stored or logged.",
     "api.reading": "Reading records from {provider}…", "api.readOk": "Loaded {count} record(s) from {provider}.",
@@ -61,6 +61,11 @@ const I18N = {
     "api.verifyErr": "Verify failed: {error}", "api.verifyResults": "DNS verification results",
     "api.matched": "matched", "api.pending": "pending", "api.mismatched": "mismatched", "api.errorLabel": "error",
     "api.expected": "expected", "api.actual": "actual",
+    "api.saveProfile": "Save as profile", "api.loadProfile": "Load profile",
+    "api.profileSaved": "Profile saved: {name} ({count} records).",
+    "api.profileLoaded": "Profile loaded: {name} ({count} records → {domain}).",
+    "api.profileErr": "Profile error: {error}",
+    "api.profileDomainRequired": "Enter a target domain before loading a profile.",
     "source.title": "1 · Source zone",
     "source.sub": "Paste/upload a BIND zone file or a DNSPod CSV export. Export it from your current DNS provider first.",
     "source.upload": "Upload file", "source.loadExample": "Load example", "source.clear": "Clear",
@@ -75,7 +80,7 @@ const I18N = {
     "table.name": "Name", "table.type": "Type", "table.ttl": "TTL", "table.line": "Line", "table.value": "Value", "table.notes": "Notes",
     "export.title": "3 · Export",
     "export.sub": "Download a Cloudflare-compatible BIND zone file, a CSV, or a shareable migration report.",
-    "export.bind": "Download Cloudflare zone file", "export.csv": "Download CSV", "export.report": "Download migration report (HTML)",
+    "export.bind": "Download Cloudflare zone file", "export.csv": "Download CSV", "export.report": "Download migration report (HTML)", "export.profile": "Save as profile (JSON)",
     "export.hint": "Cloudflare: Dashboard → DNS → Records → Import. Non-default line records follow the merge policy (default line is exported; see migration differences).",
     "preflight.title": "Pre-flight checklist", "preflight.sub": "Items that cause most DNS migration incidents — verify each before switching nameservers.",
     "preflight.item1": "DNSSEC: confirm the old provider is unsigned and no stale DS records exist.",
@@ -126,7 +131,7 @@ const I18N = {
     "provider.target": "目标服务商", "provider.zoneName": "Zone 域名",
     "api.title": "API 模式（可选）",
     "api.sub": "直接从源服务商读取记录并写入 Cloudflare。凭证仅用于本次请求——不存储、不记录日志。",
-    "api.source": "源服务商", "api.domain": "域名",
+    "api.source": "源服务商", "api.sourceDomain": "源域名", "api.targetDomain": "目标域名", "api.targetPlaceholder": "与源域名相同（复制）",
     "api.read": "读取记录", "api.preview": "预演写入（Dry-run）", "api.apply": "写入 Cloudflare",
     "api.security": "请使用最小权限 Token。凭证只会发送到本站 /api 接口，用于本次请求，不存储、不记录日志。",
     "api.reading": "正在从 {provider} 读取记录…", "api.readOk": "已从 {provider} 读取 {count} 条记录。",
@@ -142,6 +147,11 @@ const I18N = {
     "api.verifyErr": "验证失败：{error}", "api.verifyResults": "DNS 验证结果",
     "api.matched": "匹配", "api.pending": "待生效", "api.mismatched": "不匹配", "api.errorLabel": "错误",
     "api.expected": "期望", "api.actual": "实际",
+    "api.saveProfile": "保存为模板", "api.loadProfile": "加载模板",
+    "api.profileSaved": "模板已保存：{name}（{count} 条记录）。",
+    "api.profileLoaded": "模板已加载：{name}（{count} 条记录 → {domain}）。",
+    "api.profileErr": "模板错误：{error}",
+    "api.profileDomainRequired": "加载模板前请先填写目标域名。",
     "source.title": "1 · 源 Zone",
     "source.sub": "粘贴/上传 BIND zone 文件或 DNSPod CSV 导出。请先从当前 DNS 服务商导出记录。",
     "source.upload": "上传文件", "source.loadExample": "加载示例", "source.clear": "清空",
@@ -156,7 +166,7 @@ const I18N = {
     "table.name": "名称", "table.type": "类型", "table.ttl": "TTL", "table.line": "线路", "table.value": "值", "table.notes": "备注",
     "export.title": "3 · 导出",
     "export.sub": "下载 Cloudflare 兼容的 BIND 文件、CSV 清单，或可分享的迁移报告。",
-    "export.bind": "下载 Cloudflare Zone 文件", "export.csv": "下载 CSV", "export.report": "下载迁移报告（HTML）",
+    "export.bind": "下载 Cloudflare Zone 文件", "export.csv": "下载 CSV", "export.report": "下载迁移报告（HTML）", "export.profile": "保存为模板（JSON）",
     "export.hint": "Cloudflare：控制台 → DNS → Records → Import。非默认线路记录按合并策略处理（导出默认线路，详见迁移差异）。",
     "preflight.title": "迁移前检查清单", "preflight.sub": "以下事项是 DNS 迁移事故的高发原因——切换 NS 前请逐项确认。",
     "preflight.item1": "DNSSEC：确认旧服务商为 unsigned，且不存在残留 DS 记录。",
@@ -773,8 +783,99 @@ async function apiRead() {
   }
 }
 
+function targetDomain() {
+  return ($("apiTargetDomain").value.trim() || $("apiDomain").value.trim()).replace(/\.$/, "");
+}
+
+function appToProfile(records, sourceDomain, name) {
+  const src = String(sourceDomain || "").replace(/\.$/, "").toLowerCase();
+  if (!src) throw new Error("sourceDomain is required");
+  const re = new RegExp(src.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+  const entries = records.map(r => {
+    const fqdn = String(r.name || "").replace(/\.$/, "");
+    let rel;
+    if (fqdn.toLowerCase() === src) rel = "@";
+    else if (fqdn.toLowerCase().endsWith("." + src)) rel = fqdn.slice(0, -(src.length + 1));
+    else rel = fqdn;
+    return {
+      name: rel,
+      type: String(r.type || "").toUpperCase(),
+      value: String(r.value ?? "").replace(re, "{{domain}}"),
+      ttl: r.ttl || 600,
+      priority: r.priority || "",
+      line: r.line || "默认",
+      weight: r.weight || "",
+      proxied: !!r.proxied,
+    };
+  });
+  return { name: name || src, version: 1, createdAt: new Date().toISOString(), sourceDomain: src, records: entries };
+}
+
+function appExpandProfile(profile, target) {
+  const dst = String(target || "").replace(/\.$/, "");
+  if (!dst) throw new Error("targetDomain is required");
+  if (!profile || !Array.isArray(profile.records)) throw new Error("invalid profile");
+  return profile.records.map(r => {
+    const rel = String(r.name || "");
+    const name = rel === "@" || rel === "" ? dst + "." : `${rel}.${dst}.`;
+    return {
+      ...r,
+      name,
+      type: String(r.type || "").toUpperCase(),
+      value: String(r.value ?? "").split("{{domain}}").join(dst),
+    };
+  });
+}
+
+function saveProfileFromRecords() {
+  try {
+    const source = ($("apiDomain").value.trim() || (state.origin || "").replace(/\.$/, ""));
+    if (!source) { setApiStatus(t("api.error", { error: t("provider.zoneName") }), "err"); return; }
+    if (!state.records.length) { setApiStatus(t("api.error", { error: t("state.empty") }), "err"); return; }
+    const profile = appToProfile(state.records, source, source);
+    download(`${source}.dnsprofile.json`, JSON.stringify(profile, null, 2), "application/json");
+    setApiStatus(t("api.profileSaved", { name: profile.name, count: profile.records.length }), "ok");
+  } catch (err) {
+    setApiStatus(t("api.profileErr", { error: err.message }), "err");
+  }
+}
+
+function saveProfileFromFileMode() {
+  try {
+    const source = (state.origin || "").replace(/\.$/, "");
+    if (!source) { setApiStatus(t("api.error", { error: t("provider.zoneName") }), "err"); return; }
+    if (!state.records.length) { setApiStatus(t("api.error", { error: t("state.empty") }), "err"); return; }
+    const profile = appToProfile(state.records, source, source);
+    download(`${source}.dnsprofile.json`, JSON.stringify(profile, null, 2), "application/json");
+  } catch (err) {
+    setApiStatus(t("api.profileErr", { error: err.message }), "err");
+  }
+}
+
+function loadProfileFile(file) {
+  if (!file) return;
+  const dst = targetDomain();
+  if (!dst) { setApiStatus(t("api.profileDomainRequired"), "err"); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const profile = JSON.parse(String(reader.result || "{}"));
+      const records = appExpandProfile(profile, dst);
+      state.records = records;
+      state.origin = dst + ".";
+      state.target = "cloudflare";
+      state.warnings = [];
+      render();
+      setApiStatus(t("api.profileLoaded", { name: profile.name || "profile", count: records.length, domain: dst }), "ok");
+    } catch (err) {
+      setApiStatus(t("api.profileErr", { error: err.message }), "err");
+    }
+  };
+  reader.readAsText(file);
+}
+
 async function apiVerify() {
-  const domain = ($("apiDomain").value.trim() || (state.origin || "").replace(/\.$/, ""));
+  const domain = targetDomain();
   if (!domain) { setApiStatus(t("api.error", { error: t("provider.zoneName") }), "err"); return; }
   if (!state.records.length) { setApiStatus(t("api.error", { error: t("state.empty") }), "err"); return; }
   setApiStatus(t("api.verifying"), "");
@@ -801,7 +902,7 @@ function renderApiVerify(data) {
 async function apiApplyRequest(apply) {
   const token = $("cfTargetToken").value.trim();
   const accountId = $("cfTargetAccount").value.trim();
-  const domain = $("apiDomain").value.trim();
+  const domain = targetDomain();
   if (!token || !accountId || !domain) { setApiStatus(t("api.error", { error: "Cloudflare token / account ID / domain required" }), "err"); return; }
   if (!state.records.length) { setApiStatus(t("api.error", { error: t("state.empty") }), "err"); return; }
   const records = exportableRecords();
@@ -866,6 +967,9 @@ $("apiSource").addEventListener("change", () => {
   $("cfSourceCreds").hidden = isDnspod;
 });
 $("apiRead").addEventListener("click", apiRead);
+$("apiSaveProfile").addEventListener("click", saveProfileFromRecords);
+$("profileFile").addEventListener("change", (e) => loadProfileFile(e.target.files[0]));
+$("downloadProfile").addEventListener("click", saveProfileFromFileMode);
 $("apiVerify").addEventListener("click", apiVerify);
 $("apiPreview").addEventListener("click", () => apiApplyRequest(false));
 $("apiApply").addEventListener("click", () => {

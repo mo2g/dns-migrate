@@ -33,6 +33,8 @@ DNS Migrate 关注的是**迁移安全层**：可读的差异报告、迁移前�
 - **中英文界面切换**
 - **API 模式（可选，Pages Functions）**：直接从 DNSPod（腾讯云 TC3）或 Cloudflare 读取记录，预演 dry-run 计划，确认后写入 Cloudflare
 - **Verify 验证**：写入后通过公共 DNS-over-HTTPS 检查记录是否生效（`/api/verify`、`dnsmigrate verify`）
+- **DNS 模板（Profile）**：把一个 zone 保存为与域名无关的可复用模板，应用到新域名（适合年抛域名 / 域名组合）
+- **跨域名复制**：a.asia → b.asia，自动重写记录名与记录值中的域名
 - **CLI 工具**（`cli/dnsmigrate.mjs`）：在终端执行 export / plan / apply / verify / 批量 migrate
 - **批量迁移**：一条命令迁移多个域名，逐域名输出 dry-run 摘要
 - 文件模式 100% 客户端运行：数据不离开浏览器，不需要任何 API Token
@@ -80,6 +82,18 @@ CF_API_TOKEN=... CF_ACCOUNT_ID=... \
 
 # 用公共 DNS 验证记录是否生效（无需凭证，走 DoH）
 node cli/dnsmigrate.mjs verify --domain example.com --records records.json
+
+# 保存可复用模板（适合年抛域名）
+CF_API_TOKEN=... CF_ACCOUNT_ID=... \
+  node cli/dnsmigrate.mjs profile save --source cloudflare --domain a.asia --out profile.json
+
+# 把模板应用到新域名（默认 dry-run；加 --yes，可选 --verify）
+CF_API_TOKEN=... CF_ACCOUNT_ID=... \
+  node cli/dnsmigrate.mjs profile apply --profile profile.json --domain b.asia --yes --verify
+
+# 一个模板应用到多个新域名
+CF_API_TOKEN=... CF_ACCOUNT_ID=... \
+  node cli/dnsmigrate.mjs profile apply --profile profile.json --domains b.asia,c.asia
 
 # 批量迁移（默认 dry-run；加 --yes 才写入）
 CF_API_TOKEN=... CF_ACCOUNT_ID=... DNSPOD_SECRET_ID=... DNSPOD_SECRET_KEY=... \

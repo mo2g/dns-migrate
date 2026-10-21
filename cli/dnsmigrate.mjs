@@ -10,6 +10,8 @@ import {
   applyCloudflare,
   analyzeMigration,
   verifyRecords,
+  toProfile,
+  expandProfile,
 } from "../shared/providers.js";
 
 const env = process.env;
@@ -21,6 +23,8 @@ Usage:
   dnsmigrate plan   --source <cloudflare|dnspod> --domain <domain> [--target cloudflare]
   dnsmigrate apply  --target cloudflare --domain <domain> --records <file> [--yes]
   dnsmigrate verify --domain <domain> (--records <file> | --source <cloudflare|dnspod>) [--resolver 1.1.1.1|8.8.8.8]
+  dnsmigrate profile save  --source <cloudflare|dnspod> --domain <domain> --out profile.json [--name label]
+  dnsmigrate profile apply --profile profile.json --domain <target> [--domains c.com,d.com] [--yes] [--verify]
   dnsmigrate migrate --source <dnspod|cloudflare> --target cloudflare --domains a.com,b.com [--yes]
   dnsmigrate migrate --source dnspod --target cloudflare --domains-file domains.txt [--yes]
 
@@ -210,6 +214,54 @@ async function cmdVerify(values) {
   if (failed) process.exit(1);
 }
 
+async function cmdProfileSave(values) {
+  const source = values.source;
+  const domain = values.domain;
+  const out = values.out;
+  if (!source || !domain || !out) fail("profile save requires --source, --domain and --out");
+  const data = await fetchRecords(source, domain);
+  const profile = toProfile(data.records, data.domain || domain, values.name || (data.domain || domain));
+  await writeFile(out, JSON.stringify(profile, null, 2));
+  console.log(`Saved profile "${profile.name}" (${profile.records.length} records) from ${domain} to ${out}`);
+}
+
+async function cmdProfileApply(values) {
+  const file = values.profile;
+  if (!file) fail("profile apply requires --profile");
+  const profile = JSON.parse(await readFile(file, "utf8"));
+  let domains = [];
+  if (values.domain) domains.push(values.domain);
+  if (values.domains) domains = domains.concat(values.domains.split(",").map(d => d.trim()).filter(Boolean));
+  domains = [...new Set(domains)];
+  if (!domains.length) fail("profile apply requires --domain or --domains");
+
+  let failures = 0;
+  for (const domain of domains) {
+    try {
+      const records = expandProfile(profile, domain);
+      const result = await applyCloudflare({
+        token: requireEnv("CF_API_TOKEN"),
+        accountId: requireEnv("CF_ACCOUNT_ID"),
+        domain,
+        records: exportableRecords(records, "cloudflare"),
+        apply: !!values.yes,
+      });
+      console.log(`\n[${domain}] profile "${profile.name}": ${records.length} record(s)`);
+      console.log(`  → planned: create ${result.summary.create}, skip ${result.summary.skip}, conflict ${result.summary.conflict}${values.yes ? `; created ${result.created}` : " (dry-run)"}`);
+      if (values.verify) {
+        const v = await verifyRecords({ domain, records, resolver: "1.1.1.1" });
+        console.log(`  → verify: ${v.matched} matched, ${v.pending} pending, ${v.mismatched} mismatched, ${v.errors} errors`);
+        if (v.pending + v.mismatched + v.errors) failures += 1;
+      }
+    } catch (err) {
+      failures += 1;
+      console.error(`  [${domain}] FAILED: ${err.message}`);
+    }
+  }
+  if (!values.yes) console.log("\nDry-run only. Re-run with --yes to write records.");
+  if (failures) process.exit(1);
+}
+
 async function cmdMigrate(values) {
   const source = values.source;
   const target = values.target || "cloudflare";
@@ -263,6 +315,9 @@ async function main() {
         format: { type: "string" },
         records: { type: "string" },
         resolver: { type: "string" },
+        profile: { type: "string" },
+        name: { type: "string" },
+        verify: { type: "boolean", default: false },
         yes: { type: "boolean", default: false },
         help: { type: "boolean", short: "h" },
       },
@@ -280,6 +335,8 @@ async function main() {
   if (cmd === "plan") return cmdPlan(values);
   if (cmd === "apply") return cmdApply(values);
   if (cmd === "verify") return cmdVerify(values);
+  if (cmd === "profile" && positionals[1] === "save") return cmdProfileSave(values);
+  if (cmd === "profile" && positionals[1] === "apply") return cmdProfileApply(values);
   if (cmd === "migrate") return cmdMigrate(values);
   fail(`unknown command: ${cmd}\n\n${HELP}`);
 }

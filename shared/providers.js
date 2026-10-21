@@ -374,3 +374,85 @@ export async function verifyRecords({ domain, records, resolver = "1.1.1.1" }) {
     details,
   };
 }
+
+/* ---------- Profiles (domain-independent DNS templates) ---------- */
+
+function escapeRegExp(s) {
+  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Rewrite every record that belongs to sourceDomain so it belongs to
+ * targetDomain instead. Values containing the source domain are rewritten
+ * too (useful for CNAMEs and mail records in annual-rotation scenarios).
+ */
+export function retargetRecords(records, sourceDomain, targetDomain) {
+  const src = String(sourceDomain || "").replace(/\.$/, "").toLowerCase();
+  const dst = String(targetDomain || "").replace(/\.$/, "");
+  if (!src || !dst) throw new Error("sourceDomain and targetDomain are required");
+  if (!Array.isArray(records)) throw new Error("records must be an array");
+  const re = new RegExp(escapeRegExp(src), "gi");
+  return records.map(r => {
+    const name = String(r.name || "").replace(/\.$/, "");
+    let newName;
+    if (name.toLowerCase() === src) newName = dst + ".";
+    else if (name.toLowerCase().endsWith("." + src)) newName = name.slice(0, -(src.length + 1)) + "." + dst + ".";
+    else newName = name + ".";
+    return { ...r, name: newName, value: String(r.value ?? "").replace(re, dst) };
+  });
+}
+
+/**
+ * Convert a zone's records into a reusable, domain-independent profile.
+ * Record names become relative (@ / www / api); occurrences of the source
+ * domain inside values become the {{domain}} placeholder.
+ */
+export function toProfile(records, sourceDomain, name = "default") {
+  const src = String(sourceDomain || "").replace(/\.$/, "").toLowerCase();
+  if (!src) throw new Error("sourceDomain is required");
+  if (!Array.isArray(records)) throw new Error("records must be an array");
+  const re = new RegExp(escapeRegExp(src), "gi");
+  const entries = records.map(r => {
+    const fqdn = String(r.name || "").replace(/\.$/, "");
+    let rel;
+    if (fqdn.toLowerCase() === src) rel = "@";
+    else if (fqdn.toLowerCase().endsWith("." + src)) rel = fqdn.slice(0, -(src.length + 1));
+    else rel = fqdn;
+    return {
+      name: rel,
+      type: String(r.type || "").toUpperCase(),
+      value: String(r.value ?? "").replace(re, "{{domain}}"),
+      ttl: r.ttl || 600,
+      priority: r.priority || "",
+      line: r.line || "默认",
+      weight: r.weight || "",
+      proxied: !!r.proxied,
+    };
+  });
+  return {
+    name,
+    version: 1,
+    createdAt: new Date().toISOString(),
+    sourceDomain: src,
+    records: entries,
+  };
+}
+
+/**
+ * Expand a profile for a concrete target domain.
+ */
+export function expandProfile(profile, targetDomain) {
+  const dst = String(targetDomain || "").replace(/\.$/, "");
+  if (!dst) throw new Error("targetDomain is required");
+  if (!profile || !Array.isArray(profile.records)) throw new Error("invalid profile: records array is required");
+  return profile.records.map(r => {
+    const rel = String(r.name || "");
+    const name = rel === "@" || rel === "" ? dst + "." : `${rel}.${dst}.`;
+    return {
+      ...r,
+      name,
+      type: String(r.type || "").toUpperCase(),
+      value: String(r.value ?? "").split("{{domain}}").join(dst),
+    };
+  });
+}

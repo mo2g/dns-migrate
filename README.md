@@ -18,13 +18,19 @@ Moving DNS between providers is not a copy-paste job. Real migrations fail on:
 
 DNS Migrate focuses on the **safety layer**: a readable diff report, a pre-flight checklist, and a verifiable migration plan — not just export/import.
 
-## Current features (MVP)
+## Current features
 
 - Parse BIND zone files (A, AAAA, CNAME, MX, TXT, NS, SRV, CAA)
-- Record table with type statistics
-- Basic validation warnings (CNAME conflicts, wildcard records, missing TTL, unsupported types)
-- Export a Cloudflare-compatible BIND zone file
+- **Import DNSPod CSV exports (line and weight aware)**
+- **Provider capability matrix** (Cloudflare / DNSPod / Alibaba Cloud DNS / Route 53)
+- **Semantic migration diff**: line merges, dropped weights, multi-value records, low TTLs
+- **Merge suggestions with "needs approval" items**
+- Record table with type statistics and line information
+- Validation warnings (CNAME conflicts per line, wildcard records, duplicates, unsupported types)
+- Export a Cloudflare-compatible BIND zone file (default-line merge policy applied)
 - Export a CSV of parsed records
+- Export a shareable HTML migration report (diff + warnings + checklist)
+- EN / 中文 interface switch
 - 100% client-side: no data leaves the browser, no API tokens involved
 
 ## Roadmap

@@ -9,14 +9,14 @@
 - [x] CSV export
 - [ ] Deployment to Cloudflare Pages
 
-## Phase 2 — Migration safety layer
+## Phase 2 — Migration safety layer (completed)
 
-- [ ] Provider capability matrix (DNSPod / Alibaba Cloud DNS / Cloudflare / Route53)
-- [ ] Import DNSPod CSV export (line/weight aware)
-- [ ] Semantic diff: line/weight/multi-value/TTL/proxy differences
-- [ ] Merge suggestions + "needs approval" items
-- [ ] HTML migration report (shareable with clients)
-- [ ] Pre-flight checklist (DNSSEC/CAA/NS/mail/zone deletion clock)
+- [x] Provider capability matrix (DNSPod / Alibaba Cloud DNS / Cloudflare / Route53)
+- [x] Import DNSPod CSV export (line/weight aware)
+- [x] Semantic diff: line/weight/multi-value/TTL/proxy differences
+- [x] Merge suggestions + "needs approval" items
+- [x] HTML migration report (shareable with clients)
+- [x] Pre-flight checklist (DNSSEC/CAA/NS/mail/zone deletion clock)
 
 ## Phase 3 — API mode (optional)
 

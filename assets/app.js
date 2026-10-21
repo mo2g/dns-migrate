@@ -6,6 +6,13 @@ const KNOWN_TYPES = new Set([
   "SOA", "PTR", "SPF", "ALIAS", "ANAME", "DNSKEY", "DS", "NAPTR", "TLSA", "HTTPS", "SVCB",
 ]);
 
+const PROVIDERS = {
+  cloudflare: { label: "Cloudflare", lines: false, weights: false, proxy: true, multiValue: true },
+  dnspod: { label: "DNSPod", lines: true, weights: true, proxy: false, multiValue: true },
+  alidns: { label: "Alibaba Cloud DNS", lines: true, weights: true, proxy: false, multiValue: true },
+  route53: { label: "AWS Route 53", lines: true, weights: true, proxy: false, multiValue: true },
+};
+
 const EXAMPLE_ZONE = `$ORIGIN example.com.
 $TTL 600
 @       IN A       203.0.113.10
@@ -18,45 +25,41 @@ _dmarc  IN TXT     "v=DMARC1; p=quarantine"
 api     IN CNAME   api.example.net.
 @       IN CAA 0 issue "letsencrypt.org"`;
 
+const EXAMPLE_CSV = `主机记录,记录类型,线路类型,记录值,MX优先级,TTL,状态,权重
+@,A,默认,203.0.113.10,,600,启用,
+www,A,默认,203.0.113.10,,600,启用,
+@,MX,默认,aspmx.l.google.com.,10,600,启用,
+@,MX,默认,alt1.aspmx.l.google.com.,20,600,启用,
+@,TXT,默认,"v=spf1 include:_spf.example.com -all",,600,启用,
+api,CNAME,默认,api.example.net.,,600,启用,
+apm,CNAME,默认,a-slb.example.com.,,600,启用,
+apm,CNAME,境外,apm.example.com.w.cdngslb.com.,,600,启用,`;
+
 const I18N = {
   en: {
     "title": "DNS Migrate — safe DNS migration toolkit",
     "hero.title": "Safe DNS migration toolkit",
-    "hero.sub": "Parse a BIND zone file, review records and warnings, export a Cloudflare-ready zone file. Everything runs in your browser — no tokens, no uploads.",
-    "hero.badge1": "Client-side only",
-    "hero.badge2": "No API tokens",
-    "hero.badge3": "MIT licensed",
+    "hero.sub": "Parse a BIND zone file or a DNSPod CSV export, review semantic differences, and export a Cloudflare-ready zone file. Everything runs in your browser — no tokens, no uploads.",
+    "hero.badge1": "Client-side only", "hero.badge2": "No API tokens", "hero.badge3": "MIT licensed",
+    "mode.bind": "BIND zone file", "mode.csv": "DNSPod CSV",
+    "provider.target": "Target provider", "provider.zoneName": "Zone name",
     "source.title": "1 · Source zone",
-    "source.sub": "Paste a BIND zone file or upload one. Export it from your current DNS provider first.",
-    "source.upload": "Upload zone file",
-    "source.loadExample": "Load example",
-    "source.clear": "Clear",
-    "source.placeholder": "$ORIGIN example.com.\n$TTL 600\n@    IN A      203.0.113.10\nwww  IN A      203.0.113.10\n@    IN MX 10  aspmx.l.google.com.",
-    "source.parse": "Parse zone",
-    "state.empty": "Paste or upload a zone file first.",
+    "source.sub": "Paste/upload a BIND zone file or a DNSPod CSV export. Export it from your current DNS provider first.",
+    "source.upload": "Upload file", "source.loadExample": "Load example", "source.clear": "Clear",
+    "source.placeholder": "$ORIGIN example.com.\n$TTL 600\n@    IN A      203.0.113.10\nwww  IN A      203.0.113.10",
+    "source.parse": "Parse records",
+    "state.empty": "Paste or upload a file first.",
     "state.parsed": "{count} record(s) parsed",
-    "review.title": "2 · Review",
-    "review.sub": "Check the record table and warnings before exporting.",
-    "review.filter": "Filter by name, type or value…",
-    "review.allTypes": "All types",
-    "stats.records": "Records",
-    "stats.types": "Types",
-    "stats.warnings": "Warnings",
-    "stats.errors": "Errors",
+    "review.title": "2 · Review", "review.sub": "Check records, warnings and migration differences before exporting.",
+    "review.filter": "Filter by name, type or value…", "review.allTypes": "All types",
+    "stats.records": "Records", "stats.types": "Types", "stats.warnings": "Warnings", "stats.errors": "Errors",
     "warnings.clean": "No warnings — records look clean.",
-    "table.name": "Name",
-    "table.type": "Type",
-    "table.ttl": "TTL",
-    "table.value": "Value",
-    "table.notes": "Notes",
+    "table.name": "Name", "table.type": "Type", "table.ttl": "TTL", "table.line": "Line", "table.value": "Value", "table.notes": "Notes",
     "export.title": "3 · Export",
-    "export.sub": "Download a Cloudflare-compatible BIND zone file, a CSV for review, or a shareable migration report.",
-    "export.bind": "Download Cloudflare zone file",
-    "export.csv": "Download CSV",
-    "export.report": "Download migration report (HTML)",
-    "export.hint": "Cloudflare: Dashboard → DNS → Records → Import. Review the file before importing; the export is generated from the parsed records, not from your provider's API.",
-    "preflight.title": "Pre-flight checklist",
-    "preflight.sub": "Items that cause most DNS migration incidents — verify each before switching nameservers.",
+    "export.sub": "Download a Cloudflare-compatible BIND zone file, a CSV, or a shareable migration report.",
+    "export.bind": "Download Cloudflare zone file", "export.csv": "Download CSV", "export.report": "Download migration report (HTML)",
+    "export.hint": "Cloudflare: Dashboard → DNS → Records → Import. Non-default line records follow the merge policy (default line is exported; see migration differences).",
+    "preflight.title": "Pre-flight checklist", "preflight.sub": "Items that cause most DNS migration incidents — verify each before switching nameservers.",
     "preflight.item1": "DNSSEC: confirm the old provider is unsigned and no stale DS records exist.",
     "preflight.item2": "CAA: confirm the target provider's certificate authorities are allowed.",
     "preflight.item3": "Nameservers: verify the target provider's assigned pair for each zone.",
@@ -64,68 +67,62 @@ const I18N = {
     "preflight.item5": "Validation records: do not delete _dnsauth, trust-provider or similar records without checking certificate dependencies.",
     "preflight.item6": "Zone clock: free Cloudflare zones pending for more than 28 days are deleted — switch in time.",
     "preflight.item7": "Rollback: keep the old provider's records until the observation period ends.",
-    "footer.left": "DNS Migrate · MVP",
-    "footer.right": "Runs entirely in your browser · No data leaves this page",
+    "footer.left": "DNS Migrate · MVP", "footer.right": "Runs entirely in your browser · No data leaves this page",
     "warn.includeUnsupported": "$INCLUDE is not supported — include its contents manually.",
     "warn.cannotIdentify": "Could not identify a record type: {line}",
     "warn.unsupportedType": "{name} {type}: not supported by the MVP exporter; it will be excluded from the generated zone file.",
     "warn.duplicate": "{name} {type}: duplicate record ({value}).",
     "warn.wildcard": "Wildcard record {name} — confirm it does not accidentally cover hosts you did not intend to move.",
     "warn.txtTooLong": "{name} TXT: string may exceed the 255-character limit; split it into multiple quoted strings.",
+    "warn.csvDisabled": "Skipped disabled record: {name} {type} ({value}).",
     "error.cnameConflict": "{name}: CNAME cannot coexist with other record types (found {types}).",
     "error.noRecords": "No valid records were found.",
-    "note.unsupported": "Not supported by this MVP — excluded from export",
-    "note.cnameConflict": "Conflicts with other records at this name",
-    "report.title": "DNS Migration Report",
-    "report.generated": "Generated",
-    "report.domain": "Zone",
-    "report.summary": "Summary",
-    "report.records": "Records",
-    "report.types": "Record types",
-    "report.warnings": "Warnings and errors",
-    "report.recordTable": "Parsed records",
-    "report.checklist": "Pre-flight checklist",
+    "error.csvNoZone": "Zone name is required for DNSPod CSV input.",
+    "error.csvNoHeader": "CSV header not recognised. Expected columns such as 主机记录/记录类型/记录值.",
+    "error.csvNoRecords": "No records parsed from the CSV.",
+    "note.unsupported": "Not supported by this MVP — excluded from export", "note.cnameConflict": "Conflicts with other records at this name",
+    "note.merged": "Excluded by line merge policy (default line kept)",
+    "diff.title": "Migration differences", "diff.empty": "No semantic differences detected for this target.",
+    "diff.approval": "Needs approval", "diff.error": "Error", "diff.info": "Info",
+    "diff.lineMerge": "{name} {type}: lines {lines} will be merged into the default line (default kept: {value}). The target does not support per-line answers.",
+    "diff.lineKeep": "{name} {type}: multiple lines ({lines}) will be preserved — target supports line routing.",
+    "diff.weightDrop": "{name} {type}: weight {weight} cannot be represented by the target.",
+    "diff.multiValue": "{name} {type}: {count} values on the same line will be kept as a multi-value record.",
+    "diff.ttlLow": "{name} {type}: TTL {ttl}s is below 60s; the target may raise it to 60s.",
+    "diff.lineNoDefault": "{name} {type}: no default line record found; first record will be used as the fallback.",
+    "cap.lines": "lines", "cap.weights": "weights", "cap.proxy": "proxy", "cap.multiValue": "multi-value",
+    "cap.supported": "supported", "cap.unsupported": "not supported",
+    "report.title": "DNS Migration Report", "report.generated": "Generated", "report.domain": "Zone",
+    "report.target": "Target provider", "report.summary": "Summary", "report.records": "Records",
+    "report.types": "Record types", "report.warnings": "Warnings and errors", "report.differences": "Migration differences",
+    "report.recordTable": "Parsed records", "report.checklist": "Pre-flight checklist",
     "report.disclaimer": "This report was generated by DNS Migrate from a zone file supplied by the user. Review every record before importing it into a production DNS provider.",
     "report.none": "None",
   },
   zh: {
     "title": "DNS Migrate — 安全的 DNS 迁移工具",
     "hero.title": "安全的 DNS 迁移工具",
-    "hero.sub": "解析 BIND zone 文件，检查记录与警告，导出 Cloudflare 可用格式。全部在浏览器本地运行——不需要 Token，不上传任何数据。",
-    "hero.badge1": "纯本地运行",
-    "hero.badge2": "无需 API Token",
-    "hero.badge3": "MIT 开源",
+    "hero.sub": "解析 BIND zone 文件或 DNSPod CSV 导出，检查语义差异，导出 Cloudflare 可用格式。全部在浏览器本地运行——不需要 Token，不上传任何数据。",
+    "hero.badge1": "纯本地运行", "hero.badge2": "无需 API Token", "hero.badge3": "MIT 开源",
+    "mode.bind": "BIND zone 文件", "mode.csv": "DNSPod CSV",
+    "provider.target": "目标服务商", "provider.zoneName": "Zone 域名",
     "source.title": "1 · 源 Zone",
-    "source.sub": "粘贴或上传 BIND zone 文件。请先从当前 DNS 服务商导出记录。",
-    "source.upload": "上传 zone 文件",
-    "source.loadExample": "加载示例",
-    "source.clear": "清空",
-    "source.placeholder": "$ORIGIN example.com.\n$TTL 600\n@    IN A      203.0.113.10\nwww  IN A      203.0.113.10\n@    IN MX 10  aspmx.l.google.com.",
-    "source.parse": "解析 Zone",
-    "state.empty": "请先粘贴或上传 zone 文件。",
+    "source.sub": "粘贴/上传 BIND zone 文件或 DNSPod CSV 导出。请先从当前 DNS 服务商导出记录。",
+    "source.upload": "上传文件", "source.loadExample": "加载示例", "source.clear": "清空",
+    "source.placeholder": "$ORIGIN example.com.\n$TTL 600\n@    IN A      203.0.113.10\nwww  IN A      203.0.113.10",
+    "source.parse": "解析记录",
+    "state.empty": "请先粘贴或上传文件。",
     "state.parsed": "已解析 {count} 条记录",
-    "review.title": "2 · 检查",
-    "review.sub": "导出前检查记录表和警告。",
-    "review.filter": "按名称、类型或值筛选…",
-    "review.allTypes": "全部类型",
-    "stats.records": "记录数",
-    "stats.types": "类型数",
-    "stats.warnings": "警告",
-    "stats.errors": "错误",
+    "review.title": "2 · 检查", "review.sub": "导出前检查记录、警告和迁移差异。",
+    "review.filter": "按名称、类型或值筛选…", "review.allTypes": "全部类型",
+    "stats.records": "记录数", "stats.types": "类型数", "stats.warnings": "警告", "stats.errors": "错误",
     "warnings.clean": "没有警告——记录看起来正常。",
-    "table.name": "名称",
-    "table.type": "类型",
-    "table.ttl": "TTL",
-    "table.value": "值",
-    "table.notes": "备注",
+    "table.name": "名称", "table.type": "类型", "table.ttl": "TTL", "table.line": "线路", "table.value": "值", "table.notes": "备注",
     "export.title": "3 · 导出",
     "export.sub": "下载 Cloudflare 兼容的 BIND 文件、CSV 清单，或可分享的迁移报告。",
-    "export.bind": "下载 Cloudflare Zone 文件",
-    "export.csv": "下载 CSV",
-    "export.report": "下载迁移报告（HTML）",
-    "export.hint": "Cloudflare：控制台 → DNS → Records → Import。导入前请先检查文件；导出内容基于解析后的记录生成，不来自服务商 API。",
-    "preflight.title": "迁移前检查清单",
-    "preflight.sub": "以下事项是 DNS 迁移事故的高发原因——切换 NS 前请逐项确认。",
+    "export.bind": "下载 Cloudflare Zone 文件", "export.csv": "下载 CSV", "export.report": "下载迁移报告（HTML）",
+    "export.hint": "Cloudflare：控制台 → DNS → Records → Import。非默认线路记录按合并策略处理（导出默认线路，详见迁移差异）。",
+    "preflight.title": "迁移前检查清单", "preflight.sub": "以下事项是 DNS 迁移事故的高发原因——切换 NS 前请逐项确认。",
     "preflight.item1": "DNSSEC：确认旧服务商为 unsigned，且不存在残留 DS 记录。",
     "preflight.item2": "CAA：确认允许目标服务商使用的证书颁发机构。",
     "preflight.item3": "NS：逐 Zone 核对目标服务商分配的 NS 对。",
@@ -133,27 +130,35 @@ const I18N = {
     "preflight.item5": "验证记录：未经证书依赖核查，不要删除 _dnsauth、trust-provider 等验证记录。",
     "preflight.item6": "Zone 时钟：Free 计划 pending 超过 28 天会被删除——请及时切换。",
     "preflight.item7": "回滚：观察期结束前保留旧服务商的记录。",
-    "footer.left": "DNS Migrate · MVP",
-    "footer.right": "完全在浏览器本地运行 · 数据不会离开本页",
+    "footer.left": "DNS Migrate · MVP", "footer.right": "完全在浏览器本地运行 · 数据不会离开本页",
     "warn.includeUnsupported": "不支持 $INCLUDE——请手动包含其内容。",
     "warn.cannotIdentify": "无法识别记录类型：{line}",
     "warn.unsupportedType": "{name} {type}：MVP 导出器不支持该类型，将从生成的 zone 文件中排除。",
     "warn.duplicate": "{name} {type}：重复记录（{value}）。",
     "warn.wildcard": "通配符记录 {name}——请确认它不会意外覆盖你不打算迁移的主机。",
     "warn.txtTooLong": "{name} TXT：字符串可能超过 255 字符限制，请拆分为多个带引号的字符串。",
+    "warn.csvDisabled": "已跳过停用记录：{name} {type}（{value}）。",
     "error.cnameConflict": "{name}：CNAME 不能与其他类型共存（发现 {types}）。",
     "error.noRecords": "没有找到有效记录。",
-    "note.unsupported": "本 MVP 不支持——已排除导出",
-    "note.cnameConflict": "与该名称下的其他记录冲突",
-    "report.title": "DNS 迁移报告",
-    "report.generated": "生成时间",
-    "report.domain": "Zone",
-    "report.summary": "概览",
-    "report.records": "记录数",
-    "report.types": "记录类型",
-    "report.warnings": "警告与错误",
-    "report.recordTable": "解析后的记录",
-    "report.checklist": "迁移前检查清单",
+    "error.csvNoZone": "CSV 模式需要填写 Zone 域名。",
+    "error.csvNoHeader": "无法识别 CSV 表头。需要包含「主机记录/记录类型/记录值」等列。",
+    "error.csvNoRecords": "CSV 中没有解析到记录。",
+    "note.unsupported": "本 MVP 不支持——已排除导出", "note.cnameConflict": "与该名称下的其他记录冲突",
+    "note.merged": "按线路合并策略排除（保留默认线路）",
+    "diff.title": "迁移差异", "diff.empty": "未检测到针对该目标服务商的语义差异。",
+    "diff.approval": "需确认", "diff.error": "错误", "diff.info": "提示",
+    "diff.lineMerge": "{name} {type}：线路 {lines} 将合并到默认线路（保留默认值：{value}）。目标服务商不支持按线路解析。",
+    "diff.lineKeep": "{name} {type}：多条线路（{lines}）将保留——目标服务商支持线路路由。",
+    "diff.weightDrop": "{name} {type}：权重 {weight} 无法在目标服务商中表示。",
+    "diff.multiValue": "{name} {type}：同一线路的 {count} 条值将作为多值记录保留。",
+    "diff.ttlLow": "{name} {type}：TTL {ttl}s 低于 60s，目标服务商可能调整为 60s。",
+    "diff.lineNoDefault": "{name} {type}：未找到默认线路记录，将使用第一条记录作为回退。",
+    "cap.lines": "线路", "cap.weights": "权重", "cap.proxy": "代理", "cap.multiValue": "多值",
+    "cap.supported": "支持", "cap.unsupported": "不支持",
+    "report.title": "DNS 迁移报告", "report.generated": "生成时间", "report.domain": "Zone",
+    "report.target": "目标服务商", "report.summary": "概览", "report.records": "记录数",
+    "report.types": "记录类型", "report.warnings": "警告与错误", "report.differences": "迁移差异",
+    "report.recordTable": "解析后的记录", "report.checklist": "迁移前检查清单",
     "report.disclaimer": "本报告由 DNS Migrate 根据用户提供的 zone 文件生成。导入生产 DNS 服务商前，请逐条检查所有记录。",
     "report.none": "无",
   },
@@ -161,11 +166,16 @@ const I18N = {
 
 let lang = "en";
 try {
-  lang = localStorage.getItem("dnsmigrate-lang") || (navigator.language || "").toLowerCase().startsWith("zh") ? "zh" : "en";
+  const saved = localStorage.getItem("dnsmigrate-lang");
+  if (saved && I18N[saved]) lang = saved;
+  else if ((navigator.language || "").toLowerCase().startsWith("zh")) lang = "zh";
 } catch (_) { /* ignore */ }
-if (!I18N[lang]) lang = "en";
 
-const state = { records: [], warnings: [], defaultTtl: 600, origin: "" };
+const state = {
+  records: [], warnings: [], diffs: [],
+  defaultTtl: 600, origin: "",
+  mode: "bind", target: "cloudflare",
+};
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -193,40 +203,34 @@ function applyLanguage() {
     b.classList.toggle("active", b.dataset.lang === lang);
     b.setAttribute("aria-pressed", b.dataset.lang === lang ? "true" : "false");
   });
+  if (state.mode === "csv" && !$("zoneInput").value.trim()) {
+    $("zoneInput").placeholder = "主机记录,记录类型,线路类型,记录值,MX优先级,TTL,状态,权重\n@,A,默认,203.0.113.10,,600,启用,\nwww,A,默认,203.0.113.10,,600,启用,";
+  }
 }
 
-/* ---------- Zone parser ---------- */
+/* ---------- BIND parser ---------- */
 
 function stripComment(line) {
-  let inQuote = false;
-  let quote = "";
+  let inQuote = false, quote = "";
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
     if ((ch === '"' || ch === "'") && (i === 0 || line[i - 1] !== "\\")) {
-      if (!inQuote) { inQuote = true; quote = ch; }
-      else if (ch === quote) { inQuote = false; }
-    } else if (ch === ";" && !inQuote) {
-      return line.slice(0, i);
-    }
+      if (!inQuote) { inQuote = true; quote = ch; } else if (ch === quote) { inQuote = false; }
+    } else if (ch === ";" && !inQuote) return line.slice(0, i);
   }
   return line;
 }
 
 function mergeBracketLines(lines) {
-  const out = [];
-  let buffer = "";
-  let depth = 0;
+  const out = []; let buffer = "", depth = 0;
   for (const raw of lines) {
     const line = stripComment(raw);
     if (!buffer && !line.trim()) continue;
-    let inQuote = false;
-    let quote = "";
-    let opens = 0, closes = 0;
+    let inQuote = false, quote = "", opens = 0, closes = 0;
     for (let i = 0; i < line.length; i++) {
       const ch = line[i];
       if ((ch === '"' || ch === "'") && (i === 0 || line[i - 1] !== "\\")) {
-        if (!inQuote) { inQuote = true; quote = ch; }
-        else if (ch === quote) { inQuote = false; }
+        if (!inQuote) { inQuote = true; quote = ch; } else if (ch === quote) { inQuote = false; }
       } else if (!inQuote) {
         if (ch === "(") opens++;
         if (ch === ")") closes++;
@@ -248,26 +252,15 @@ function expandName(name, origin) {
 }
 
 function parseZone(text) {
-  const records = [];
-  const warnings = [];
-  let origin = "";
-  let defaultTtl = 600;
-  let lastOwner = "";
-
+  const records = [], warnings = [];
+  let origin = "", defaultTtl = 600, lastOwner = "";
   const lines = mergeBracketLines(text.split(/\r?\n/));
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line) continue;
     if (/^\$ORIGIN\s+/i.test(line)) { origin = line.split(/\s+/)[1]; continue; }
-    if (/^\$TTL\s+/i.test(line)) {
-      const ttl = parseInt(line.split(/\s+/)[1], 10);
-      if (!Number.isNaN(ttl)) defaultTtl = ttl;
-      continue;
-    }
-    if (/^\$INCLUDE\s+/i.test(line)) {
-      warnings.push({ level: "warn", key: "warn.includeUnsupported" });
-      continue;
-    }
+    if (/^\$TTL\s+/i.test(line)) { const ttl = parseInt(line.split(/\s+/)[1], 10); if (!Number.isNaN(ttl)) defaultTtl = ttl; continue; }
+    if (/^\$INCLUDE\s+/i.test(line)) { warnings.push({ level: "warn", key: "warn.includeUnsupported" }); continue; }
 
     const tokens = line.split(/\s+/);
     let typeIndex = -1;
@@ -276,44 +269,132 @@ function parseZone(text) {
       if (KNOWN_TYPES.has(tt)) { typeIndex = i; break; }
       if (tt === "IN" || /^\d+$/.test(tt)) continue;
     }
-    if (typeIndex === -1) {
-      warnings.push({ level: "warn", key: "warn.cannotIdentify", params: { line: line.slice(0, 80) } });
-      continue;
-    }
+    if (typeIndex === -1) { warnings.push({ level: "warn", key: "warn.cannotIdentify", params: { line: line.slice(0, 80) } }); continue; }
 
     const type = tokens[typeIndex].toUpperCase();
     let owner = tokens[0];
     if (/^(\d+|IN)$/i.test(owner) || KNOWN_TYPES.has(owner.toUpperCase())) owner = lastOwner;
     lastOwner = owner || lastOwner;
-
     let ttl = defaultTtl;
-    for (let i = 1; i < typeIndex; i++) {
-      if (/^\d+$/.test(tokens[i])) ttl = parseInt(tokens[i], 10);
-    }
-
+    for (let i = 1; i < typeIndex; i++) if (/^\d+$/.test(tokens[i])) ttl = parseInt(tokens[i], 10);
     let valueTokens = tokens.slice(typeIndex + 1);
     let priority = "";
-    if (type === "MX" && valueTokens.length >= 2 && /^\d+$/.test(valueTokens[0])) {
-      priority = valueTokens[0];
-      valueTokens = valueTokens.slice(1);
-    }
+    if (type === "MX" && valueTokens.length >= 2 && /^\d+$/.test(valueTokens[0])) { priority = valueTokens[0]; valueTokens = valueTokens.slice(1); }
     const value = valueTokens.join(" ");
     const name = expandName(owner, origin);
-
-    const record = { name, type, ttl, priority, value, owner: owner || "@" };
-    if (!SUPPORTED.has(type)) {
-      record.noteKey = "note.unsupported";
-      warnings.push({ level: "warn", key: "warn.unsupportedType", params: { name, type } });
-    }
+    const record = { name, type, ttl, priority, value, owner: owner || "@", line: "默认", weight: "" };
+    if (!SUPPORTED.has(type)) { record.noteKey = "note.unsupported"; warnings.push({ level: "warn", key: "warn.unsupportedType", params: { name, type } }); }
     records.push(record);
   }
+  validate(records, warnings);
+  return { records, warnings, defaultTtl, origin };
+}
 
-  const byName = new Map();
-  for (const r of records) {
-    if (!byName.has(r.name)) byName.set(r.name, []);
-    byName.get(r.name).push(r);
+/* ---------- CSV parser ---------- */
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = "", inQuote = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuote) {
+      if (ch === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (ch === '"') inQuote = false;
+      else field += ch;
+    } else {
+      if (ch === '"') inQuote = true;
+      else if (ch === ",") { row.push(field); field = ""; }
+      else if (ch === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+      else if (ch === "\r") { /* skip */ }
+      else field += ch;
+    }
   }
-  for (const [name, items] of byName) {
+  if (field.length || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim() !== ""));
+}
+
+function findColumn(headers, aliases) {
+  for (let i = 0; i < headers.length; i++) {
+    const h = headers[i].trim().toLowerCase();
+    if (aliases.some(a => h === a.toLowerCase())) return i;
+  }
+  return -1;
+}
+
+function parseDnspodCsv(text, zoneName) {
+  const records = [], warnings = [];
+  if (!zoneName || !zoneName.trim()) {
+    warnings.push({ level: "error", key: "error.csvNoZone" });
+    return { records, warnings, origin: "", defaultTtl: 600 };
+  }
+  const rows = parseCsv(text);
+  if (rows.length < 2) { warnings.push({ level: "error", key: "error.csvNoHeader" }); return { records, warnings, origin: zoneName, defaultTtl: 600 }; }
+
+  const headers = rows[0];
+  const col = {
+    host: findColumn(headers, ["主机记录", "主机名", "host", "name"]),
+    type: findColumn(headers, ["记录类型", "类型", "type"]),
+    line: findColumn(headers, ["线路类型", "线路", "line"]),
+    value: findColumn(headers, ["记录值", "值", "value", "content"]),
+    priority: findColumn(headers, ["MX优先级", "优先级", "mx", "priority"]),
+    ttl: findColumn(headers, ["TTL", "ttl"]),
+    status: findColumn(headers, ["状态", "status", "是否启用", "enabled"]),
+    weight: findColumn(headers, ["权重", "weight"]),
+    comment: findColumn(headers, ["备注", "remark", "comment"]),
+  };
+  if (col.host < 0 || col.type < 0 || col.value < 0) {
+    warnings.push({ level: "error", key: "error.csvNoHeader" });
+    return { records, warnings, origin: zoneName, defaultTtl: 600 };
+  }
+
+  const zone = zoneName.trim().replace(/\.$/, "") + ".";
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const host = (row[col.host] || "").trim();
+    const type = (row[col.type] || "").trim().toUpperCase();
+    if (!host || !type) continue;
+    const value = (row[col.value] || "").trim();
+    const status = (col.status >= 0 ? (row[col.status] || "") : "").trim();
+    if (/暂停|禁用|停用|disabled|paused/i.test(status)) {
+      warnings.push({ level: "warn", key: "warn.csvDisabled", params: { name: expandName(host, zone), type, value } });
+      continue;
+    }
+    if (!KNOWN_TYPES.has(type)) {
+      warnings.push({ level: "warn", key: "warn.unsupportedType", params: { name: expandName(host, zone), type } });
+    }
+    const name = expandName(host, zone);
+    const record = {
+      name, type,
+      ttl: col.ttl >= 0 && row[col.ttl] ? (parseInt(row[col.ttl], 10) || 600) : 600,
+      priority: col.priority >= 0 ? (row[col.priority] || "").trim() : "",
+      value,
+      line: col.line >= 0 ? ((row[col.line] || "").trim() || "默认") : "默认",
+      weight: col.weight >= 0 ? (row[col.weight] || "").trim() : "",
+      owner: host,
+      comment: col.comment >= 0 ? (row[col.comment] || "").trim() : "",
+    };
+    if (!SUPPORTED.has(type)) record.noteKey = "note.unsupported";
+    records.push(record);
+  }
+  if (!records.length) warnings.push({ level: "error", key: "error.csvNoRecords" });
+  validate(records, warnings);
+  return { records, warnings, origin: zone, defaultTtl: 600 };
+}
+
+/* ---------- Validation + semantic diff ---------- */
+
+function validate(records, warnings) {
+  // CNAME conflicts are checked per name + line: DNSPod permits the same name
+  // to have different CNAME targets on different lines, but a single line
+  // cannot mix CNAME with other record types.
+  const byNameLine = new Map();
+  for (const r of records) {
+    const key = `${r.name}|${r.line || "默认"}`;
+    if (!byNameLine.has(key)) byNameLine.set(key, []);
+    byNameLine.get(key).push(r);
+  }
+  for (const [key, items] of byNameLine) {
+    const name = key.split("|")[0];
     const cname = items.filter(r => r.type === "CNAME");
     if (cname.length && items.length > 1) {
       warnings.push({ level: "error", key: "error.cnameConflict", params: { name, types: items.map(x => x.type).join(", ") } });
@@ -321,9 +402,9 @@ function parseZone(text) {
     }
     const seen = new Set();
     for (const r of items) {
-      const key = `${r.type}|${r.value}|${r.priority}`;
-      if (seen.has(key)) warnings.push({ level: "warn", key: "warn.duplicate", params: { name, type: r.type, value: r.value } });
-      seen.add(key);
+      const dk = `${r.type}|${r.value}|${r.priority}`;
+      if (seen.has(dk)) warnings.push({ level: "warn", key: "warn.duplicate", params: { name, type: r.type, value: r.value } });
+      seen.add(dk);
     }
   }
   for (const r of records) {
@@ -333,19 +414,81 @@ function parseZone(text) {
     }
   }
   if (!records.length) warnings.push({ level: "error", key: "error.noRecords" });
+}
 
-  return { records, warnings, defaultTtl, origin };
+function isDefaultLine(line) {
+  return !line || /^(默认|default)$/i.test(line.trim());
+}
+
+function analyzeMigration(records, targetKey) {
+  const target = PROVIDERS[targetKey] || PROVIDERS.cloudflare;
+  const diffs = [];
+  const groups = new Map();
+  for (const r of records) {
+    const key = `${r.name}|${r.type}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+
+  for (const [key, items] of groups) {
+    const [name, type] = key.split("|");
+    const lines = [...new Set(items.map(r => r.line || "默认"))];
+    const nonDefault = lines.filter(l => !isDefaultLine(l));
+
+    if (nonDefault.length) {
+      const defaultRec = items.find(r => isDefaultLine(r.line));
+      if (!defaultRec) {
+        diffs.push({ level: "approval", key: "diff.lineNoDefault", params: { name, type } });
+      }
+      if (target.lines) {
+        diffs.push({ level: "info", key: "diff.lineKeep", params: { name, type, lines: lines.join(", ") } });
+      } else {
+        diffs.push({
+          level: "approval",
+          key: "diff.lineMerge",
+          params: { name, type, lines: nonDefault.join(", "), value: defaultRec ? defaultRec.value : items[0].value },
+        });
+      }
+    }
+
+    const weights = [...new Set(items.map(r => (r.weight || "").trim()).filter(w => w && w !== "0"))];
+    if (weights.length && !target.weights) {
+      diffs.push({ level: "approval", key: "diff.weightDrop", params: { name, type, weight: weights.join(", ") } });
+    }
+
+    for (const line of lines) {
+      const sameLine = items.filter(r => (r.line || "默认") === line);
+      if (sameLine.length > 1) {
+        diffs.push({ level: target.multiValue ? "info" : "error", key: "diff.multiValue", params: { name, type, count: sameLine.length } });
+      }
+    }
+
+    for (const r of items) {
+      if (r.ttl && r.ttl < 60) diffs.push({ level: "info", key: "diff.ttlLow", params: { name, type, ttl: r.ttl } });
+    }
+  }
+
+  const seen = new Set();
+  return diffs.filter(d => {
+    const k = `${d.key}|${JSON.stringify(d.params || {})}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
 
 /* ---------- Rendering ---------- */
 
 function render() {
+  state.target = $("targetProvider").value;
+  state.diffs = analyzeMigration(state.records, state.target);
+
   const typeFilter = $("typeFilter").value;
   const filter = $("filterInput").value.trim().toLowerCase();
   const visible = state.records.filter(r => {
     if (typeFilter && r.type !== typeFilter) return false;
     if (!filter) return true;
-    return `${r.name} ${r.type} ${r.value}`.toLowerCase().includes(filter);
+    return `${r.name} ${r.type} ${r.value} ${r.line || ""}`.toLowerCase().includes(filter);
   });
 
   const types = [...new Set(state.records.map(r => r.type))].sort();
@@ -363,11 +506,14 @@ function render() {
     ? state.warnings.map(w => `<div class="warnitem ${w.level === "error" ? "error" : ""}">${esc(t(w.key, w.params))}</div>`).join("")
     : `<div class="warnitem" style="background:#f0fdf4;border-color:#86efac;color:#166534">${esc(t("warnings.clean"))}</div>`;
 
+  renderDiff();
+
   $("recordsTable").querySelector("tbody").innerHTML = visible.map(r => `
     <tr>
       <td>${esc(r.name)}</td>
       <td class="type">${esc(r.type)}</td>
       <td>${esc(r.ttl)}</td>
+      <td>${esc(r.line || "—")}</td>
       <td>${esc(r.priority ? `${r.priority} ${r.value}` : r.value || "—")}</td>
       <td class="note">${esc(r.noteKey ? t(r.noteKey) : "")}</td>
     </tr>`).join("");
@@ -377,27 +523,71 @@ function render() {
   $("exportCard").hidden = false;
 }
 
+function renderDiff() {
+  const target = PROVIDERS[state.target] || PROVIDERS.cloudflare;
+  const caps = ["lines", "weights", "proxy", "multiValue"].map(cap => {
+    const supported = target[cap];
+    return `<span class="cap ${supported ? "" : "no"}">${esc(t(`cap.${cap}`))}: ${esc(t(supported ? "cap.supported" : "cap.unsupported"))}</span>`;
+  }).join("");
+  const items = state.diffs.length
+    ? state.diffs.map(d => `<div class="diffitem ${d.level}"><span class="tag">${esc(t(`diff.${d.level}`))}</span><div class="body">${esc(t(d.key, d.params))}</div></div>`).join("")
+    : `<div class="diffempty">${esc(t("diff.empty"))}</div>`;
+  $("migrationDiff").innerHTML = `
+    <div class="diffbox">
+      <div class="diffhead"><b>${esc(t("diff.title"))}</b><span class="cap">${esc(target.label)}</span>${caps}</div>
+      ${items}
+    </div>`;
+}
+
 function parseAndRender() {
   const text = $("zoneInput").value;
+  const zoneName = $("zoneName").value;
   if (!text.trim()) {
     $("parseState").textContent = t("state.empty");
     $("parseState").className = "state err";
     return;
   }
-  const result = parseZone(text);
+  const result = state.mode === "csv" ? parseDnspodCsv(text, zoneName) : parseZone(text);
   state.records = result.records;
   state.warnings = result.warnings;
   state.defaultTtl = result.defaultTtl;
   state.origin = result.origin;
+  state.target = $("targetProvider").value;
   render();
 }
 
 /* ---------- Export ---------- */
 
-function toBind() {
-  const lines = ["; Exported by DNS Migrate", `; ${state.records.length} parsed record(s)`, `$TTL ${state.defaultTtl}`];
+function exportableRecords() {
+  // Merge policy: when the target has no line support, keep the default-line
+  // record per name+type group; non-default lines are reported in the diff.
+  const target = PROVIDERS[state.target] || PROVIDERS.cloudflare;
+  if (target.lines) return state.records.filter(r => SUPPORTED.has(r.type));
+  const groups = new Map();
   for (const r of state.records) {
-    if (!SUPPORTED.has(r.type)) continue;
+    const key = `${r.name}|${r.type}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  const out = [];
+  for (const items of groups.values()) {
+    const supported = items.filter(r => SUPPORTED.has(r.type));
+    if (!supported.length) continue;
+    const def = supported.find(r => isDefaultLine(r.line));
+    if (def) {
+      out.push(def);
+      supported.forEach(r => { if (r !== def && !isDefaultLine(r.line)) r.noteKey = "note.merged"; });
+    } else {
+      out.push(...supported);
+    }
+  }
+  return out;
+}
+
+function toBind() {
+  const recs = exportableRecords();
+  const lines = ["; Exported by DNS Migrate", `; target: ${(PROVIDERS[state.target] || {}).label || state.target}`, `; ${recs.length} record(s)`, `$TTL ${state.defaultTtl}`];
+  for (const r of recs) {
     const owner = r.name.endsWith(".") ? r.name : r.name + ".";
     lines.push(r.type === "MX" && r.priority ? `${owner} ${r.ttl} IN MX ${r.priority} ${r.value}` : `${owner} ${r.ttl} IN ${r.type} ${r.value}`);
   }
@@ -406,20 +596,24 @@ function toBind() {
 
 function toCsv() {
   const escCsv = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const rows = [["name", "type", "ttl", "priority", "value", "notes"]];
-  for (const r of state.records) rows.push([r.name, r.type, r.ttl, r.priority, r.value, r.noteKey ? t(r.noteKey) : ""]);
+  const rows = [["name", "type", "ttl", "line", "priority", "value", "notes"]];
+  for (const r of state.records) rows.push([r.name, r.type, r.ttl, r.line || "", r.priority, r.value, r.noteKey ? t(r.noteKey) : ""]);
   return rows.map(row => row.map(escCsv).join(",")).join("\n");
 }
 
 function toReport() {
   const domain = (state.origin || "zone").replace(/\.$/, "");
   const types = [...new Set(state.records.map(r => r.type))].sort().join(", ");
+  const target = PROVIDERS[state.target] || PROVIDERS.cloudflare;
   const now = new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC";
-  const warningRows = state.warnings.length
+  const warnRows = state.warnings.length
     ? state.warnings.map(w => `<li class="${w.level === "error" ? "err" : "warn"}">${esc(t(w.key, w.params))}</li>`).join("")
     : `<li>${esc(t("report.none"))}</li>`;
+  const diffRows = state.diffs.length
+    ? state.diffs.map(d => `<li class="${d.level === "approval" ? "warn" : d.level === "error" ? "err" : ""}">[${esc(t(`diff.${d.level}`))}] ${esc(t(d.key, d.params))}</li>`).join("")
+    : `<li>${esc(t("report.none"))}</li>`;
   const recordRows = state.records.map(r => `
-    <tr><td>${esc(r.name)}</td><td>${esc(r.type)}</td><td>${esc(r.ttl)}</td><td>${esc(r.priority ? r.priority + " " + r.value : r.value)}</td><td>${esc(r.noteKey ? t(r.noteKey) : "")}</td></tr>`).join("");
+    <tr><td>${esc(r.name)}</td><td>${esc(r.type)}</td><td>${esc(r.ttl)}</td><td>${esc(r.line || "—")}</td><td>${esc(r.priority ? r.priority + " " + r.value : r.value)}</td><td>${esc(r.noteKey ? t(r.noteKey) : "")}</td></tr>`).join("");
   const checklist = ["preflight.item1", "preflight.item2", "preflight.item3", "preflight.item4", "preflight.item5", "preflight.item6", "preflight.item7"]
     .map(k => `<li>${esc(t(k))}</li>`).join("");
 
@@ -436,7 +630,7 @@ li.err{color:#991b1b}li.warn{color:#92400e}.disclaimer{margin-top:28px;padding:1
 @media print{body{margin:10mm auto}.disclaimer{break-inside:avoid}}
 </style></head><body>
 <h1>${esc(t("report.title"))}</h1>
-<div class="meta">${esc(t("report.domain"))}: ${esc(domain)} · ${esc(t("report.generated"))}: ${esc(now)}</div>
+<div class="meta">${esc(t("report.domain"))}: ${esc(domain)} · ${esc(t("report.target"))}: ${esc(target.label)} · ${esc(t("report.generated"))}: ${esc(now)}</div>
 <h2>${esc(t("report.summary"))}</h2>
 <div class="grid">
 <div class="stat"><b>${state.records.length}</b><span>${esc(t("report.records"))}</span></div>
@@ -444,9 +638,10 @@ li.err{color:#991b1b}li.warn{color:#92400e}.disclaimer{margin-top:28px;padding:1
 <div class="stat"><b>${state.warnings.filter(w => w.level === "warn").length}</b><span>${esc(t("stats.warnings"))}</span></div>
 <div class="stat"><b>${state.warnings.filter(w => w.level === "error").length}</b><span>${esc(t("stats.errors"))}</span></div>
 </div>
-<h2>${esc(t("report.warnings"))}</h2><ul>${warningRows}</ul>
+<h2>${esc(t("report.differences"))}</h2><ul>${diffRows}</ul>
+<h2>${esc(t("report.warnings"))}</h2><ul>${warnRows}</ul>
 <h2>${esc(t("report.recordTable"))}</h2>
-<table><thead><tr><th>${esc(t("table.name"))}</th><th>${esc(t("table.type"))}</th><th>${esc(t("table.ttl"))}</th><th>${esc(t("table.value"))}</th><th>${esc(t("table.notes"))}</th></tr></thead><tbody>${recordRows}</tbody></table>
+<table><thead><tr><th>${esc(t("table.name"))}</th><th>${esc(t("table.type"))}</th><th>${esc(t("table.ttl"))}</th><th>${esc(t("table.line"))}</th><th>${esc(t("table.value"))}</th><th>${esc(t("table.notes"))}</th></tr></thead><tbody>${recordRows}</tbody></table>
 <h2>${esc(t("report.checklist"))}</h2><ul>${checklist}</ul>
 <div class="disclaimer">${esc(t("report.disclaimer"))}</div>
 </body></html>`;
@@ -456,34 +651,55 @@ function download(filename, content, mime = "text/plain") {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ---------- Mode handling ---------- */
+
+function setMode(mode) {
+  state.mode = mode === "csv" ? "csv" : "bind";
+  document.querySelectorAll(".mode-btn").forEach(b => b.classList.toggle("active", b.dataset.mode === state.mode));
+  $("zoneNameRow").hidden = state.mode !== "csv";
+  if (state.mode === "csv") {
+    $("zoneInput").placeholder = "主机记录,记录类型,线路类型,记录值,MX优先级,TTL,状态,权重\n@,A,默认,203.0.113.10,,600,启用,\nwww,A,默认,203.0.113.10,,600,启用,";
+  } else {
+    $("zoneInput").placeholder = t("source.placeholder");
+  }
 }
 
 /* ---------- Events ---------- */
 
 document.querySelectorAll(".lang-switch button").forEach(b => b.addEventListener("click", () => setLanguage(b.dataset.lang)));
+document.querySelectorAll(".mode-btn").forEach(b => b.addEventListener("click", () => {
+  setMode(b.dataset.mode);
+  if (state.records.length) parseAndRender();
+}));
 $("parseBtn").addEventListener("click", parseAndRender);
-$("loadExample").addEventListener("click", () => { $("zoneInput").value = EXAMPLE_ZONE; parseAndRender(); });
+$("loadExample").addEventListener("click", () => {
+  $("zoneInput").value = state.mode === "csv" ? EXAMPLE_CSV : EXAMPLE_ZONE;
+  if (state.mode === "csv" && !$("zoneName").value) $("zoneName").value = "example.com";
+  parseAndRender();
+});
 $("clearBtn").addEventListener("click", () => {
-  $("zoneInput").value = "";
-  state.records = []; state.warnings = [];
+  $("zoneInput").value = ""; $("zoneName").value = "";
+  state.records = []; state.warnings = []; state.diffs = [];
   $("resultsCard").hidden = true; $("exportCard").hidden = true;
   $("parseState").textContent = "";
 });
 $("fileInput").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
+  if (/\.csv$/i.test(file.name)) setMode("csv");
   const reader = new FileReader();
   reader.onload = () => { $("zoneInput").value = String(reader.result || ""); parseAndRender(); };
   reader.readAsText(file);
 });
 $("filterInput").addEventListener("input", render);
 $("typeFilter").addEventListener("change", render);
+$("targetProvider").addEventListener("change", () => { if (state.records.length) render(); });
+$("zoneName").addEventListener("input", () => { if (state.mode === "csv" && state.records.length) parseAndRender(); });
 $("downloadBind").addEventListener("click", () => {
   const domain = (state.origin || "zone").replace(/\.$/, "").replace(/[^a-z0-9.-]/gi, "") || "zone";
   download(`${domain}.cloudflare.zone`, toBind());
@@ -498,3 +714,4 @@ $("downloadReport").addEventListener("click", () => {
 });
 
 applyLanguage();
+setMode("bind");

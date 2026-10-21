@@ -41,8 +41,21 @@ const I18N = {
     "hero.title": "Safe DNS migration toolkit",
     "hero.sub": "Parse a BIND zone file or a DNSPod CSV export, review semantic differences, and export a Cloudflare-ready zone file. Everything runs in your browser — no tokens, no uploads.",
     "hero.badge1": "Client-side only", "hero.badge2": "No API tokens", "hero.badge3": "MIT licensed",
-    "mode.bind": "BIND zone file", "mode.csv": "DNSPod CSV",
+    "mode.bind": "BIND zone file", "mode.csv": "DNSPod CSV", "mode.api": "API",
     "provider.target": "Target provider", "provider.zoneName": "Zone name",
+    "api.title": "API mode (optional)",
+    "api.sub": "Read records directly from your provider and write to Cloudflare. Credentials are used only for this request — never stored or logged.",
+    "api.source": "Source provider", "api.domain": "Domain",
+    "api.read": "Read records", "api.preview": "Preview write (dry-run)", "api.apply": "Apply to Cloudflare",
+    "api.security": "Use least-privilege tokens. Credentials are sent only to this site's /api endpoint, used for this request, and never stored or logged.",
+    "api.reading": "Reading records from {provider}…", "api.readOk": "Loaded {count} record(s) from {provider}.",
+    "api.readErr": "Read failed: {error}", "api.previewing": "Building dry-run plan…",
+    "api.previewOk": "Dry-run: {create} to create, {skip} skipped, {conflict} conflicts.",
+    "api.applyConfirm": "Create {count} record(s) in Cloudflare? This changes live DNS.",
+    "api.applying": "Applying to Cloudflare…", "api.applyOk": "Created {created} record(s).",
+    "api.applyErr": "Apply failed: {error}", "api.error": "Error: {error}",
+    "api.disabled": "Skipped {count} disabled record(s) from the source.",
+    "api.create": "create", "api.skip": "skip", "api.conflict": "conflict", "api.plan": "Dry-run plan", "api.results": "Apply results",
     "source.title": "1 · Source zone",
     "source.sub": "Paste/upload a BIND zone file or a DNSPod CSV export. Export it from your current DNS provider first.",
     "source.upload": "Upload file", "source.loadExample": "Load example", "source.clear": "Clear",
@@ -104,8 +117,21 @@ const I18N = {
     "hero.title": "安全的 DNS 迁移工具",
     "hero.sub": "解析 BIND zone 文件或 DNSPod CSV 导出，检查语义差异，导出 Cloudflare 可用格式。全部在浏览器本地运行——不需要 Token，不上传任何数据。",
     "hero.badge1": "纯本地运行", "hero.badge2": "无需 API Token", "hero.badge3": "MIT 开源",
-    "mode.bind": "BIND zone 文件", "mode.csv": "DNSPod CSV",
+    "mode.bind": "BIND zone 文件", "mode.csv": "DNSPod CSV", "mode.api": "API",
     "provider.target": "目标服务商", "provider.zoneName": "Zone 域名",
+    "api.title": "API 模式（可选）",
+    "api.sub": "直接从源服务商读取记录并写入 Cloudflare。凭证仅用于本次请求——不存储、不记录日志。",
+    "api.source": "源服务商", "api.domain": "域名",
+    "api.read": "读取记录", "api.preview": "预演写入（Dry-run）", "api.apply": "写入 Cloudflare",
+    "api.security": "请使用最小权限 Token。凭证只会发送到本站 /api 接口，用于本次请求，不存储、不记录日志。",
+    "api.reading": "正在从 {provider} 读取记录…", "api.readOk": "已从 {provider} 读取 {count} 条记录。",
+    "api.readErr": "读取失败：{error}", "api.previewing": "正在生成 Dry-run 计划…",
+    "api.previewOk": "Dry-run：待创建 {create} 条，跳过 {skip} 条，冲突 {conflict} 条。",
+    "api.applyConfirm": "将在 Cloudflare 创建 {count} 条记录，这会修改线上 DNS。确认继续？",
+    "api.applying": "正在写入 Cloudflare…", "api.applyOk": "已创建 {created} 条记录。",
+    "api.applyErr": "写入失败：{error}", "api.error": "错误：{error}",
+    "api.disabled": "已跳过源端 {count} 条停用记录。",
+    "api.create": "创建", "api.skip": "跳过", "api.conflict": "冲突", "api.plan": "Dry-run 计划", "api.results": "写入结果",
     "source.title": "1 · 源 Zone",
     "source.sub": "粘贴/上传 BIND zone 文件或 DNSPod CSV 导出。请先从当前 DNS 服务商导出记录。",
     "source.upload": "上传文件", "source.loadExample": "加载示例", "source.clear": "清空",
@@ -659,13 +685,104 @@ function download(filename, content, mime = "text/plain") {
 /* ---------- Mode handling ---------- */
 
 function setMode(mode) {
-  state.mode = mode === "csv" ? "csv" : "bind";
+  state.mode = ["bind", "csv", "api"].includes(mode) ? mode : "bind";
   document.querySelectorAll(".mode-btn").forEach(b => b.classList.toggle("active", b.dataset.mode === state.mode));
-  $("zoneNameRow").hidden = state.mode !== "csv";
-  if (state.mode === "csv") {
+  const isApi = state.mode === "api";
+  $("apiCard").hidden = !isApi;
+  $("sourceToolbar").hidden = isApi;
+  $("zoneInput").hidden = isApi;
+  $("sourceProviderRow").hidden = isApi;
+  $("sourceActions").hidden = isApi;
+  $("zoneNameRow").hidden = isApi || state.mode !== "csv";
+  if (isApi) {
+    $("zoneInput").placeholder = "";
+  } else if (state.mode === "csv") {
     $("zoneInput").placeholder = "主机记录,记录类型,线路类型,记录值,MX优先级,TTL,状态,权重\n@,A,默认,203.0.113.10,,600,启用,\nwww,A,默认,203.0.113.10,,600,启用,";
   } else {
     $("zoneInput").placeholder = t("source.placeholder");
+  }
+}
+
+/* ---------- API mode ---------- */
+
+function setApiStatus(text, kind) {
+  const el = $("apiStatus");
+  el.textContent = text || "";
+  el.className = "state" + (kind ? " " + kind : "");
+}
+
+async function apiFetch(path, payload) {
+  const res = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  let data;
+  try { data = await res.json(); } catch { throw new Error(`HTTP ${res.status}`); }
+  if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+function renderApiActions(items, isResult) {
+  if (!items.length) { $("apiActions").innerHTML = ""; return; }
+  const rows = items.map(it => {
+    const action = isResult ? (it.ok ? "create" : "skip") : it.action;
+    const kind = isResult ? (it.ok ? "info" : "error") : (it.action === "create" ? "info" : it.action === "conflict" ? "error" : "approval");
+    const detail = isResult
+      ? `${it.name} ${it.type} ${it.value}${it.error ? " — " + it.error : ""}`
+      : `${it.name} ${it.type} ${it.value}${it.reason ? " — " + it.reason : ""}`;
+    return `<div class="diffitem ${kind}"><span class="tag">${esc(t(`api.${action}`))}</span><div class="body">${esc(detail)}</div></div>`;
+  }).join("");
+  $("apiActions").innerHTML = `<div class="diffbox"><div class="diffhead"><b>${esc(t(isResult ? "api.results" : "api.plan"))}</b></div>${rows}</div>`;
+}
+
+async function apiRead() {
+  const provider = $("apiSource").value;
+  const domain = $("apiDomain").value.trim();
+  if (!domain) { setApiStatus(t("api.error", { error: t("provider.zoneName") }), "err"); return; }
+  const payload = { provider, domain };
+  if (provider === "dnspod") {
+    payload.secretId = $("dnspodSecretId").value.trim();
+    payload.secretKey = $("dnspodSecretKey").value.trim();
+  } else {
+    payload.token = $("cfSourceToken").value.trim();
+    payload.accountId = $("cfSourceAccount").value.trim();
+  }
+  setApiStatus(t("api.reading", { provider: PROVIDERS[provider] ? PROVIDERS[provider].label : provider }), "");
+  try {
+    const data = await apiFetch("/api/export", payload);
+    const disabled = data.records.filter(r => r.disabled);
+    state.records = data.records.filter(r => !r.disabled).map(r => ({ ...r, disabled: undefined }));
+    state.origin = (data.domain || domain).replace(/\.$/, "") + ".";
+    state.warnings = disabled.length ? [{ level: "warn", key: "api.disabled", params: { count: disabled.length } }] : [];
+    state.target = "cloudflare";
+    render();
+    setApiStatus(t("api.readOk", { count: state.records.length, provider: PROVIDERS[provider] ? PROVIDERS[provider].label : provider }), "ok");
+  } catch (err) {
+    setApiStatus(t("api.readErr", { error: err.message }), "err");
+  }
+}
+
+async function apiApplyRequest(apply) {
+  const token = $("cfTargetToken").value.trim();
+  const accountId = $("cfTargetAccount").value.trim();
+  const domain = $("apiDomain").value.trim();
+  if (!token || !accountId || !domain) { setApiStatus(t("api.error", { error: "Cloudflare token / account ID / domain required" }), "err"); return; }
+  if (!state.records.length) { setApiStatus(t("api.error", { error: t("state.empty") }), "err"); return; }
+  const records = exportableRecords();
+  if (apply) setApiStatus(t("api.applying"), "");
+  else setApiStatus(t("api.previewing"), "");
+  try {
+    const data = await apiFetch("/api/apply", { token, accountId, domain, records, apply });
+    if (apply) {
+      renderApiActions(data.results || [], true);
+      setApiStatus(t("api.applyOk", { created: data.created }), "ok");
+    } else {
+      renderApiActions(data.actions || [], false);
+      setApiStatus(t("api.previewOk", data.summary || { create: 0, skip: 0, conflict: 0 }), "ok");
+    }
+  } catch (err) {
+    setApiStatus(t(apply ? "api.applyErr" : "api.error", { error: err.message }), "err");
   }
 }
 
@@ -707,6 +824,16 @@ $("downloadBind").addEventListener("click", () => {
 $("downloadCsv").addEventListener("click", () => {
   const domain = (state.origin || "zone").replace(/\.$/, "").replace(/[^a-z0-9.-]/gi, "") || "zone";
   download(`${domain}.records.csv`, toCsv(), "text/csv");
+});
+$("apiSource").addEventListener("change", () => {
+  const isDnspod = $("apiSource").value === "dnspod";
+  $("dnspodCreds").hidden = !isDnspod;
+  $("cfSourceCreds").hidden = isDnspod;
+});
+$("apiRead").addEventListener("click", apiRead);
+$("apiPreview").addEventListener("click", () => apiApplyRequest(false));
+$("apiApply").addEventListener("click", () => {
+  if (confirm(t("api.applyConfirm", { count: exportableRecords().length }))) apiApplyRequest(true);
 });
 $("downloadReport").addEventListener("click", () => {
   const domain = (state.origin || "zone").replace(/\.$/, "").replace(/[^a-z0-9.-]/gi, "") || "zone";

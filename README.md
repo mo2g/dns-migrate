@@ -4,7 +4,7 @@ English | [中文](README.zh-CN.md)
 
 **Safe DNS migration toolkit** — plan, diff, migrate and verify DNS zones between providers.
 
-> Status: MVP (browser-only, static). Deployable to Cloudflare Pages with zero backend.
+> Status: MVP + optional API mode (Cloudflare Pages Functions). Static mode works with zero backend.
 
 ## Why
 
@@ -31,7 +31,8 @@ DNS Migrate focuses on the **safety layer**: a readable diff report, a pre-fligh
 - Export a CSV of parsed records
 - Export a shareable HTML migration report (diff + warnings + checklist)
 - EN / 中文 interface switch
-- 100% client-side: no data leaves the browser, no API tokens involved
+- **API mode (optional, Pages Functions)**: read records directly from DNSPod (Tencent Cloud TC3) or Cloudflare, preview a dry-run plan, then apply to Cloudflare with explicit confirmation
+- 100% client-side in file mode: no data leaves the browser, no API tokens involved
 
 ## Roadmap
 
@@ -47,9 +48,23 @@ See [docs/roadmap.md](docs/roadmap.md).
 
 ```bash
 cd dns-migrate
+
+# Static / file mode only
 python3 -m http.server 8080
 # open http://localhost:8080
+
+# API mode (Pages Functions)
+npx wrangler pages dev . --port 8788
+# open http://localhost:8788
 ```
+
+## Credentials & security
+
+- Tokens are sent only to this site's `/api/export` and `/api/apply` endpoints over HTTPS.
+- They are used for the single request and are **never stored, logged or persisted**.
+- Use least-privilege tokens: DNSPod CAM key with DNS read access; Cloudflare token with `Zone → DNS → Edit`.
+- API apply defaults to dry-run. Writing to Cloudflare requires explicit confirmation.
+- `apply` currently supports A, AAAA, CNAME, MX and TXT records. NS/CAA/SRV are skipped in the apply MVP.
 
 ## Deploy to Cloudflare Pages
 

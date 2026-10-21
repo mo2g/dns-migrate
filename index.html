@@ -37,8 +37,9 @@
       <div class="mode-switch" role="group" aria-label="Input format">
         <button type="button" id="modeBind" class="mode-btn active" data-mode="bind" data-i18n="mode.bind">BIND zone file</button>
         <button type="button" id="modeCsv" class="mode-btn" data-mode="csv" data-i18n="mode.csv">DNSPod CSV</button>
+        <button type="button" id="modeApi" class="mode-btn" data-mode="api" data-i18n="mode.api">API</button>
       </div>
-      <div class="provider-row">
+      <div class="provider-row" id="sourceProviderRow">
         <label class="field"><span data-i18n="provider.target">Target provider</span>
           <select id="targetProvider">
             <option value="cloudflare">Cloudflare</option>
@@ -51,16 +52,54 @@
           <input id="zoneName" type="text" placeholder="example.com">
         </label>
       </div>
-      <div class="toolbar">
+      <div class="toolbar" id="sourceToolbar">
         <label class="filebtn"><span data-i18n="source.upload">Upload zone file</span><input id="fileInput" type="file" accept=".zone,.txt,.csv,text/plain,text/csv"></label>
         <button id="loadExample" class="secondary" data-i18n="source.loadExample">Load example</button>
         <button id="clearBtn" class="secondary" data-i18n="source.clear">Clear</button>
       </div>
       <textarea id="zoneInput" spellcheck="false" data-i18n-placeholder="source.placeholder" placeholder="$ORIGIN example.com.&#10;$TTL 600&#10;@    IN A      203.0.113.10&#10;www  IN A      203.0.113.10&#10;@    IN MX 10  aspmx.l.google.com."></textarea>
-      <div class="actions">
+      <div class="actions" id="sourceActions">
         <button id="parseBtn" data-i18n="source.parse">Parse zone</button>
         <span id="parseState" class="state"></span>
       </div>
+    </div>
+  </section>
+
+  <section class="card" id="apiCard" hidden>
+    <div class="card-head">
+      <h2 data-i18n="api.title">API mode (optional)</h2>
+      <div class="sub" data-i18n="api.sub">Read records directly from your provider and write to Cloudflare. Credentials are used only for this request — never stored or logged.</div>
+    </div>
+    <div class="card-body">
+      <div class="provider-row">
+        <label class="field"><span data-i18n="api.source">Source provider</span>
+          <select id="apiSource">
+            <option value="dnspod">DNSPod</option>
+            <option value="cloudflare">Cloudflare</option>
+          </select>
+        </label>
+        <label class="field"><span data-i18n="api.domain">Domain</span><input id="apiDomain" type="text" placeholder="example.com" autocomplete="off"></label>
+      </div>
+      <div class="provider-row" id="dnspodCreds">
+        <label class="field"><span>DNSPod SecretId</span><input id="dnspodSecretId" type="password" autocomplete="off"></label>
+        <label class="field"><span>DNSPod SecretKey</span><input id="dnspodSecretKey" type="password" autocomplete="off"></label>
+      </div>
+      <div class="provider-row" id="cfSourceCreds" hidden>
+        <label class="field"><span>Source Cloudflare API Token</span><input id="cfSourceToken" type="password" autocomplete="off"></label>
+        <label class="field"><span>Source Account ID</span><input id="cfSourceAccount" type="text" autocomplete="off"></label>
+      </div>
+      <div class="provider-row">
+        <label class="field"><span>Target Cloudflare API Token</span><input id="cfTargetToken" type="password" autocomplete="off"></label>
+        <label class="field"><span>Target Account ID</span><input id="cfTargetAccount" type="text" autocomplete="off"></label>
+      </div>
+      <div class="actions">
+        <button id="apiRead" data-i18n="api.read">Read records</button>
+        <button id="apiPreview" class="secondary" data-i18n="api.preview">Preview write (dry-run)</button>
+        <button id="apiApply" class="secondary" data-i18n="api.apply">Apply to Cloudflare</button>
+      </div>
+      <div id="apiStatus" class="state" style="margin-top:8px"></div>
+      <div id="apiActions"></div>
+      <p class="hint" data-i18n="api.security">Use least-privilege tokens. Credentials are sent only to this site's /api endpoint, used for this request, and never stored or logged.</p>
     </div>
   </section>
 

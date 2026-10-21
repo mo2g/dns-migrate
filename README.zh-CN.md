@@ -4,7 +4,7 @@
 
 **安全的 DNS 迁移工具** —— 在 DNS 服务商之间规划、对比、迁移并验证 DNS 记录。
 
-> 状态：MVP（纯浏览器、静态页面）。可直接部署到 Cloudflare Pages，无需后端。
+> 状态：MVP + 可选 API 模式（Cloudflare Pages Functions）。文件模式无需后端。
 
 ## 为什么做这个
 
@@ -31,7 +31,8 @@ DNS Migrate 关注的是**迁移安全层**：可读的差异报告、迁移前�
 - 导出 CSV 记录清单
 - 导出可分享的 HTML 迁移报告（差异 + 警告 + 预检清单）
 - **中英文界面切换**
-- 100% 客户端运行：数据不离开浏览器，不需要任何 API Token
+- **API 模式（可选，Pages Functions）**：直接从 DNSPod（腾讯云 TC3）或 Cloudflare 读取记录，预演 dry-run 计划，确认后写入 Cloudflare
+- 文件模式 100% 客户端运行：数据不离开浏览器，不需要任何 API Token
 
 ## 路线图
 
@@ -47,9 +48,23 @@ DNS Migrate 关注的是**迁移安全层**：可读的差异报告、迁移前�
 
 ```bash
 cd dns-migrate
+
+# 仅文件模式
 python3 -m http.server 8080
 # 打开 http://localhost:8080
+
+# API 模式（Pages Functions）
+npx wrangler pages dev . --port 8788
+# 打开 http://localhost:8788
 ```
+
+## 凭证与安全
+
+- Token 只会通过 HTTPS 发送到本站的 `/api/export` 与 `/api/apply` 接口。
+- 仅用于当次请求，**不存储、不记录日志、不持久化**。
+- 请使用最小权限：DNSPod CAM 密钥仅授予 DNS 读取；Cloudflare Token 仅授予 `Zone → DNS → Edit`。
+- API 写入默认 dry-run；真正写入 Cloudflare 需要二次确认。
+- 当前 `apply` 支持 A、AAAA、CNAME、MX、TXT；NS/CAA/SRV 在写入 MVP 中会跳过。
 
 ## 部署到 Cloudflare Pages
 

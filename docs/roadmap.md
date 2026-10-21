@@ -18,11 +18,12 @@
 - [x] HTML migration report (shareable with clients)
 - [x] Pre-flight checklist (DNSSEC/CAA/NS/mail/zone deletion clock)
 
-## Phase 3 — API mode (optional)
+## Phase 3 — API mode (optional, MVP completed)
 
-- [ ] Cloudflare Pages Functions proxy (no CORS issues)
-- [ ] User-supplied tokens (never stored)
-- [ ] Read from source / preview / apply / verify
+- [x] Cloudflare Pages Functions proxy (no CORS issues)
+- [x] User-supplied tokens (never stored)
+- [x] Read from source (DNSPod TC3 / Cloudflare) / preview / apply
+- [ ] Verify endpoint (post-apply public DNS check)
 - [ ] Rate limiting and audit log
 
 ## Phase 4 — Product

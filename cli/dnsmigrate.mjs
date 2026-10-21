@@ -9,6 +9,7 @@ import {
   exportDnspod,
   applyCloudflare,
   analyzeMigration,
+  verifyRecords,
 } from "../shared/providers.js";
 
 const env = process.env;
@@ -19,6 +20,7 @@ Usage:
   dnsmigrate export --provider <cloudflare|dnspod> --domain <domain> [--out file] [--format json|bind]
   dnsmigrate plan   --source <cloudflare|dnspod> --domain <domain> [--target cloudflare]
   dnsmigrate apply  --target cloudflare --domain <domain> --records <file> [--yes]
+  dnsmigrate verify --domain <domain> (--records <file> | --source <cloudflare|dnspod>) [--resolver 1.1.1.1|8.8.8.8]
   dnsmigrate migrate --source <dnspod|cloudflare> --target cloudflare --domains a.com,b.com [--yes]
   dnsmigrate migrate --source dnspod --target cloudflare --domains-file domains.txt [--yes]
 
@@ -184,6 +186,30 @@ async function cmdApply(values) {
   if (!values.yes) console.log("\nDry-run only. Re-run with --yes to write these records.");
 }
 
+async function cmdVerify(values) {
+  const domain = values.domain;
+  if (!domain) fail("verify requires --domain");
+  let records;
+  if (values.records) {
+    const payload = JSON.parse(await readFile(values.records, "utf8"));
+    records = Array.isArray(payload) ? payload : payload.records;
+  } else if (values.source) {
+    const data = await fetchRecords(values.source, domain);
+    records = data.records;
+  } else {
+    fail("verify requires --records <file> or --source <provider>");
+  }
+  if (!Array.isArray(records) || !records.length) fail("no records to verify");
+  const result = await verifyRecords({ domain, records, resolver: values.resolver || "1.1.1.1" });
+  console.log(`Checked ${result.checked} record(s) via ${result.resolver}: ${result.matched} matched, ${result.pending} pending, ${result.mismatched} mismatched, ${result.errors} error(s).`);
+  for (const d of result.details) {
+    if (d.status === "matched") continue;
+    console.log(`  [${d.status}] ${d.name} ${d.type} — expected ${JSON.stringify(d.expected)}; actual ${JSON.stringify(d.actual || [])}${d.error ? " — " + d.error : ""}`);
+  }
+  const failed = result.pending + result.mismatched + result.errors;
+  if (failed) process.exit(1);
+}
+
 async function cmdMigrate(values) {
   const source = values.source;
   const target = values.target || "cloudflare";
@@ -236,6 +262,7 @@ async function main() {
         out: { type: "string" },
         format: { type: "string" },
         records: { type: "string" },
+        resolver: { type: "string" },
         yes: { type: "boolean", default: false },
         help: { type: "boolean", short: "h" },
       },
@@ -252,6 +279,7 @@ async function main() {
   if (cmd === "export") return cmdExport(values);
   if (cmd === "plan") return cmdPlan(values);
   if (cmd === "apply") return cmdApply(values);
+  if (cmd === "verify") return cmdVerify(values);
   if (cmd === "migrate") return cmdMigrate(values);
   fail(`unknown command: ${cmd}\n\n${HELP}`);
 }

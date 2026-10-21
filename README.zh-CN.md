@@ -32,7 +32,8 @@ DNS Migrate 关注的是**迁移安全层**：可读的差异报告、迁移前�
 - 导出可分享的 HTML 迁移报告（差异 + 警告 + 预检清单）
 - **中英文界面切换**
 - **API 模式（可选，Pages Functions）**：直接从 DNSPod（腾讯云 TC3）或 Cloudflare 读取记录，预演 dry-run 计划，确认后写入 Cloudflare
-- **CLI 工具**（`cli/dnsmigrate.mjs`）：在终端执行 export / plan / apply / 批量 migrate
+- **Verify 验证**：写入后通过公共 DNS-over-HTTPS 检查记录是否生效（`/api/verify`、`dnsmigrate verify`）
+- **CLI 工具**（`cli/dnsmigrate.mjs`）：在终端执行 export / plan / apply / verify / 批量 migrate
 - **批量迁移**：一条命令迁移多个域名，逐域名输出 dry-run 摘要
 - 文件模式 100% 客户端运行：数据不离开浏览器，不需要任何 API Token
 
@@ -76,6 +77,9 @@ DNSPOD_SECRET_ID=... DNSPOD_SECRET_KEY=... \
 # 写入（默认 dry-run；加 --yes 才真正执行）
 CF_API_TOKEN=... CF_ACCOUNT_ID=... \
   node cli/dnsmigrate.mjs apply --target cloudflare --domain example.com --records records.json
+
+# 用公共 DNS 验证记录是否生效（无需凭证，走 DoH）
+node cli/dnsmigrate.mjs verify --domain example.com --records records.json
 
 # 批量迁移（默认 dry-run；加 --yes 才写入）
 CF_API_TOKEN=... CF_ACCOUNT_ID=... DNSPOD_SECRET_ID=... DNSPOD_SECRET_KEY=... \

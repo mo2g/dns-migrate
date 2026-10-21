@@ -23,7 +23,7 @@
 - [x] Cloudflare Pages Functions proxy (no CORS issues)
 - [x] User-supplied tokens (never stored)
 - [x] Read from source (DNSPod TC3 / Cloudflare) / preview / apply
-- [ ] Verify endpoint (post-apply public DNS check)
+- [x] Verify endpoint (post-apply public DNS check)
 - [ ] Rate limiting and audit log
 
 ## Phase 4 — Product

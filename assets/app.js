@@ -56,6 +56,11 @@ const I18N = {
     "api.applyErr": "Apply failed: {error}", "api.error": "Error: {error}",
     "api.disabled": "Skipped {count} disabled record(s) from the source.",
     "api.create": "create", "api.skip": "skip", "api.conflict": "conflict", "api.plan": "Dry-run plan", "api.results": "Apply results",
+    "api.verify": "Verify DNS", "api.verifying": "Checking public DNS…",
+    "api.verifyOk": "Verified: {matched} matched, {pending} pending, {mismatched} mismatched, {errors} errors.",
+    "api.verifyErr": "Verify failed: {error}", "api.verifyResults": "DNS verification results",
+    "api.matched": "matched", "api.pending": "pending", "api.mismatched": "mismatched", "api.errorLabel": "error",
+    "api.expected": "expected", "api.actual": "actual",
     "source.title": "1 · Source zone",
     "source.sub": "Paste/upload a BIND zone file or a DNSPod CSV export. Export it from your current DNS provider first.",
     "source.upload": "Upload file", "source.loadExample": "Load example", "source.clear": "Clear",
@@ -132,6 +137,11 @@ const I18N = {
     "api.applyErr": "写入失败：{error}", "api.error": "错误：{error}",
     "api.disabled": "已跳过源端 {count} 条停用记录。",
     "api.create": "创建", "api.skip": "跳过", "api.conflict": "冲突", "api.plan": "Dry-run 计划", "api.results": "写入结果",
+    "api.verify": "验证 DNS", "api.verifying": "正在检查公共 DNS…",
+    "api.verifyOk": "验证结果：{matched} 匹配，{pending} 待生效，{mismatched} 不匹配，{errors} 错误。",
+    "api.verifyErr": "验证失败：{error}", "api.verifyResults": "DNS 验证结果",
+    "api.matched": "匹配", "api.pending": "待生效", "api.mismatched": "不匹配", "api.errorLabel": "错误",
+    "api.expected": "期望", "api.actual": "实际",
     "source.title": "1 · 源 Zone",
     "source.sub": "粘贴/上传 BIND zone 文件或 DNSPod CSV 导出。请先从当前 DNS 服务商导出记录。",
     "source.upload": "上传文件", "source.loadExample": "加载示例", "source.clear": "清空",
@@ -763,6 +773,31 @@ async function apiRead() {
   }
 }
 
+async function apiVerify() {
+  const domain = ($("apiDomain").value.trim() || (state.origin || "").replace(/\.$/, ""));
+  if (!domain) { setApiStatus(t("api.error", { error: t("provider.zoneName") }), "err"); return; }
+  if (!state.records.length) { setApiStatus(t("api.error", { error: t("state.empty") }), "err"); return; }
+  setApiStatus(t("api.verifying"), "");
+  try {
+    const data = await apiFetch("/api/verify", { domain, records: state.records, resolver: "1.1.1.1" });
+    renderApiVerify(data);
+    setApiStatus(t("api.verifyOk", data), "ok");
+  } catch (err) {
+    setApiStatus(t("api.verifyErr", { error: err.message }), "err");
+  }
+}
+
+function renderApiVerify(data) {
+  const rows = (data.details || []).filter(d => d.status !== "matched").map(d => {
+    const kind = d.status === "mismatched" || d.status === "error" ? "error" : "approval";
+    const label = t(d.status === "error" ? "api.errorLabel" : `api.${d.status}`);
+    const detail = `${d.name} ${d.type} — ${t("api.expected")} ${JSON.stringify(d.expected)}; ${t("api.actual")} ${JSON.stringify(d.actual || [])}${d.error ? " — " + d.error : ""}`;
+    return `<div class="diffitem ${kind}"><span class="tag">${esc(label)}</span><div class="body">${esc(detail)}</div></div>`;
+  }).join("");
+  const matchedNote = `<div class="diffempty">${esc(t("api.matched"))}: ${data.matched} / ${data.checked}</div>`;
+  $("apiActions").innerHTML = `<div class="diffbox"><div class="diffhead"><b>${esc(t("api.verifyResults"))}</b><span class="cap">${esc(data.resolver)}</span></div>${rows || matchedNote}</div>`;
+}
+
 async function apiApplyRequest(apply) {
   const token = $("cfTargetToken").value.trim();
   const accountId = $("cfTargetAccount").value.trim();
@@ -831,6 +866,7 @@ $("apiSource").addEventListener("change", () => {
   $("cfSourceCreds").hidden = isDnspod;
 });
 $("apiRead").addEventListener("click", apiRead);
+$("apiVerify").addEventListener("click", apiVerify);
 $("apiPreview").addEventListener("click", () => apiApplyRequest(false));
 $("apiApply").addEventListener("click", () => {
   if (confirm(t("api.applyConfirm", { count: exportableRecords().length }))) apiApplyRequest(true);

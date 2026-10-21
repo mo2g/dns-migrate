@@ -291,3 +291,86 @@ export function analyzeMigration(records, targetKey = "cloudflare") {
     return true;
   });
 }
+
+/* ---------- Verify (public DNS over HTTPS) ---------- */
+
+const TYPE_NUM = { A: 1, NS: 2, CNAME: 5, MX: 15, TXT: 16, AAAA: 28, SRV: 33, CAA: 257 };
+
+function normalizeTxtData(data) {
+  const s = String(data ?? "");
+  const parts = s.match(/"([^"\\]|\\.)*"/g);
+  if (!parts) return s;
+  return parts.map(p => p.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\")).join("");
+}
+
+function normalizeDohAnswer(type, data) {
+  if (type === "TXT") return normalizeTxtData(data);
+  return String(data ?? "").trim().replace(/\.$/, "").toLowerCase();
+}
+
+function expectedDohValue(record) {
+  const type = String(record.type || "").toUpperCase();
+  if (type === "TXT") return unquoteTxt(record.value);
+  if (type === "MX") {
+    const host = String(record.value ?? "").trim().replace(/\.$/, "").toLowerCase();
+    const pri = String(record.priority ?? "").trim();
+    return pri ? `${pri} ${host}` : host;
+  }
+  return String(record.value ?? "").trim().replace(/\.$/, "").toLowerCase();
+}
+
+async function dohQuery(resolver, name, type) {
+  const base = resolver === "8.8.8.8" ? "https://dns.google/resolve" : "https://cloudflare-dns.com/dns-query";
+  const url = `${base}?name=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}`;
+  const res = await fetch(url, { headers: { accept: "application/dns-json" } });
+  if (!res.ok) throw new Error(`DoH HTTP ${res.status}`);
+  const data = await res.json();
+  if (Number(data.Status) === 3) return [];
+  const answers = data.Answer || [];
+  return answers.filter(a => Number(a.type) === TYPE_NUM[type]).map(a => a.data);
+}
+
+export async function verifyRecords({ domain, records, resolver = "1.1.1.1" }) {
+  if (!domain) throw new Error("domain is required");
+  if (!Array.isArray(records) || !records.length) throw new Error("records must be a non-empty array");
+  const supported = records.filter(r => TYPE_NUM[String(r.type || "").toUpperCase()]);
+  const limited = supported.slice(0, 100);
+  const details = [];
+
+  for (let i = 0; i < limited.length; i += 5) {
+    const batch = limited.slice(i, i + 5);
+    const batchResults = await Promise.all(batch.map(async (record) => {
+      const type = String(record.type).toUpperCase();
+      // Proxied Cloudflare records do not expose their origin value: a proxied
+      // CNAME answers with edge A records, and proxied A/AAAA answer with
+      // Cloudflare edge IPs. For those, presence of an answer means matched.
+      const proxied = !!record.proxied;
+      const queryType = proxied && type === "CNAME" ? "A" : type;
+      const expected = proxied ? "proxied → Cloudflare edge" : expectedDohValue(record);
+      try {
+        const answers = await dohQuery(resolver, record.name, queryType);
+        const actual = answers.map(a => normalizeDohAnswer(queryType, a));
+        let status;
+        if (!actual.length) status = "pending";
+        else if (proxied) status = "matched";
+        else if (actual.some(a => a === expected || (type === "MX" && !String(record.priority ?? "").trim() && a.endsWith(" " + expected)))) status = "matched";
+        else status = "mismatched";
+        return { name: record.name, type, expected, actual, status, proxied };
+      } catch (err) {
+        return { name: record.name, type, expected, actual: [], status: "error", error: err instanceof Error ? err.message : String(err) };
+      }
+    }));
+    details.push(...batchResults);
+  }
+
+  return {
+    domain,
+    resolver,
+    checked: details.length,
+    matched: details.filter(d => d.status === "matched").length,
+    pending: details.filter(d => d.status === "pending").length,
+    mismatched: details.filter(d => d.status === "mismatched").length,
+    errors: details.filter(d => d.status === "error").length,
+    details,
+  };
+}

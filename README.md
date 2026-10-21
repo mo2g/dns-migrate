@@ -32,7 +32,8 @@ DNS Migrate focuses on the **safety layer**: a readable diff report, a pre-fligh
 - Export a shareable HTML migration report (diff + warnings + checklist)
 - EN / 中文 interface switch
 - **API mode (optional, Pages Functions)**: read records directly from DNSPod (Tencent Cloud TC3) or Cloudflare, preview a dry-run plan, then apply to Cloudflare with explicit confirmation
-- **CLI companion** (`cli/dnsmigrate.mjs`): export / plan / apply / bulk migrate from the terminal
+- **Verify**: check records against public DNS-over-HTTPS after applying (`/api/verify`, `dnsmigrate verify`)
+- **CLI companion** (`cli/dnsmigrate.mjs`): export / plan / apply / verify / bulk migrate from the terminal
 - **Bulk migration**: migrate multiple domains in one command with a dry-run summary per zone
 - 100% client-side in file mode: no data leaves the browser, no API tokens involved
 
@@ -76,6 +77,9 @@ DNSPOD_SECRET_ID=... DNSPOD_SECRET_KEY=... \
 # Apply (dry-run by default; add --yes to write)
 CF_API_TOKEN=... CF_ACCOUNT_ID=... \
   node cli/dnsmigrate.mjs apply --target cloudflare --domain example.com --records records.json
+
+# Verify records against public DNS (no credentials; uses DoH)
+node cli/dnsmigrate.mjs verify --domain example.com --records records.json
 
 # Bulk migrate multiple domains (dry-run; add --yes to write)
 CF_API_TOKEN=... CF_ACCOUNT_ID=... DNSPOD_SECRET_ID=... DNSPOD_SECRET_KEY=... \

@@ -1,5 +1,7 @@
 # DNS Migrate
 
+English | [中文](README.zh-CN.md)
+
 **Safe DNS migration toolkit** — plan, diff, migrate and verify DNS zones between providers.
 
 > Status: MVP (browser-only, static). Deployable to Cloudflare Pages with zero backend.

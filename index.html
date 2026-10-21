@@ -10,13 +10,19 @@
 <body>
 <header class="hero">
   <div class="wrap hero-in">
-    <div class="brand">DNS <span>Migrate</span></div>
-    <h1>Safe DNS migration toolkit</h1>
-    <p class="tagline">Parse a BIND zone file, review records and warnings, export a Cloudflare-ready zone file. Everything runs in your browser — no tokens, no uploads.</p>
+    <div class="hero-top">
+      <div class="brand">DNS <span>Migrate</span></div>
+      <div class="lang-switch" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button>
+        <button type="button" data-lang="zh">中文</button>
+      </div>
+    </div>
+    <h1 data-i18n="hero.title">Safe DNS migration toolkit</h1>
+    <p class="tagline" data-i18n="hero.sub">Parse a BIND zone file, review records and warnings, export a Cloudflare-ready zone file. Everything runs in your browser — no tokens, no uploads.</p>
     <div class="badges">
-      <span class="badge">Client-side only</span>
-      <span class="badge">No API tokens</span>
-      <span class="badge">MIT licensed</span>
+      <span class="badge" data-i18n="hero.badge1">Client-side only</span>
+      <span class="badge" data-i18n="hero.badge2">No API tokens</span>
+      <span class="badge" data-i18n="hero.badge3">MIT licensed</span>
     </div>
   </div>
 </header>
@@ -24,18 +30,18 @@
 <main class="wrap">
   <section class="card">
     <div class="card-head">
-      <h2>1 · Source zone</h2>
-      <div class="sub">Paste a BIND zone file or upload one. Export it from your current DNS provider first.</div>
+      <h2 data-i18n="source.title">1 · Source zone</h2>
+      <div class="sub" data-i18n="source.sub">Paste a BIND zone file or upload one. Export it from your current DNS provider first.</div>
     </div>
     <div class="card-body">
       <div class="toolbar">
-        <label class="filebtn">Upload zone file<input id="fileInput" type="file" accept=".zone,.txt,text/plain"></label>
-        <button id="loadExample" class="secondary">Load example</button>
-        <button id="clearBtn" class="secondary">Clear</button>
+        <label class="filebtn"><span data-i18n="source.upload">Upload zone file</span><input id="fileInput" type="file" accept=".zone,.txt,text/plain"></label>
+        <button id="loadExample" class="secondary" data-i18n="source.loadExample">Load example</button>
+        <button id="clearBtn" class="secondary" data-i18n="source.clear">Clear</button>
       </div>
-      <textarea id="zoneInput" spellcheck="false" placeholder="$ORIGIN example.com.&#10;$TTL 600&#10;@    IN A      203.0.113.10&#10;www  IN A      203.0.113.10&#10;@    IN MX 10  aspmx.l.google.com."></textarea>
+      <textarea id="zoneInput" spellcheck="false" data-i18n-placeholder="source.placeholder" placeholder="$ORIGIN example.com.&#10;$TTL 600&#10;@    IN A      203.0.113.10&#10;www  IN A      203.0.113.10&#10;@    IN MX 10  aspmx.l.google.com."></textarea>
       <div class="actions">
-        <button id="parseBtn">Parse zone</button>
+        <button id="parseBtn" data-i18n="source.parse">Parse zone</button>
         <span id="parseState" class="state"></span>
       </div>
     </div>
@@ -43,19 +49,19 @@
 
   <section class="card" id="resultsCard" hidden>
     <div class="card-head">
-      <h2>2 · Review</h2>
-      <div class="sub">Check the record table and warnings before exporting.</div>
+      <h2 data-i18n="review.title">2 · Review</h2>
+      <div class="sub" data-i18n="review.sub">Check the record table and warnings before exporting.</div>
     </div>
     <div class="card-body">
       <div class="stats" id="stats"></div>
       <div id="warnings" class="warnings"></div>
       <div class="table-tools">
-        <input id="filterInput" type="search" placeholder="Filter by name, type or value…">
-        <select id="typeFilter"><option value="">All types</option></select>
+        <input id="filterInput" type="search" data-i18n-placeholder="review.filter" placeholder="Filter by name, type or value…">
+        <select id="typeFilter"><option value="" data-i18n="review.allTypes">All types</option></select>
       </div>
       <div class="table-wrap">
         <table id="recordsTable">
-          <thead><tr><th>Name</th><th>Type</th><th>TTL</th><th>Value</th><th>Notes</th></tr></thead>
+          <thead><tr><th data-i18n="table.name">Name</th><th data-i18n="table.type">Type</th><th data-i18n="table.ttl">TTL</th><th data-i18n="table.value">Value</th><th data-i18n="table.notes">Notes</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -64,39 +70,40 @@
 
   <section class="card" id="exportCard" hidden>
     <div class="card-head">
-      <h2>3 · Export</h2>
-      <div class="sub">Download a Cloudflare-compatible BIND zone file, or a CSV for review.</div>
+      <h2 data-i18n="export.title">3 · Export</h2>
+      <div class="sub" data-i18n="export.sub">Download a Cloudflare-compatible BIND zone file, a CSV for review, or a shareable migration report.</div>
     </div>
     <div class="card-body">
       <div class="actions">
-        <button id="downloadBind">Download Cloudflare zone file</button>
-        <button id="downloadCsv" class="secondary">Download CSV</button>
+        <button id="downloadBind" data-i18n="export.bind">Download Cloudflare zone file</button>
+        <button id="downloadCsv" class="secondary" data-i18n="export.csv">Download CSV</button>
+        <button id="downloadReport" class="secondary" data-i18n="export.report">Download migration report (HTML)</button>
       </div>
-      <p class="hint">Cloudflare: Dashboard → DNS → Records → Import. Review the file before importing; the export is generated from the parsed records, not from your provider's API.</p>
+      <p class="hint" data-i18n="export.hint">Cloudflare: Dashboard → DNS → Records → Import. Review the file before importing; the export is generated from the parsed records, not from your provider's API.</p>
     </div>
   </section>
 
   <section class="card">
     <div class="card-head">
-      <h2>Pre-flight checklist</h2>
-      <div class="sub">Items that cause most DNS migration incidents — verify each before switching nameservers.</div>
+      <h2 data-i18n="preflight.title">Pre-flight checklist</h2>
+      <div class="sub" data-i18n="preflight.sub">Items that cause most DNS migration incidents — verify each before switching nameservers.</div>
     </div>
     <div class="card-body">
       <ul class="checklist">
-        <li>DNSSEC: confirm the old provider is <b>unsigned</b> and no stale DS records exist.</li>
-        <li>CAA: confirm the target provider's certificate authorities are allowed.</li>
-        <li>Nameservers: verify the target provider's assigned pair for <b>each</b> zone.</li>
-        <li>Mail: MX, SPF, DKIM and DMARC records exist and match the current provider.</li>
-        <li>Validation records: do not delete <code>_dnsauth</code>, trust-provider or similar records without checking certificate dependencies.</li>
-        <li>Zone clock: free Cloudflare zones pending for more than 28 days are deleted — switch in time.</li>
-        <li>Rollback: keep the old provider's records until the observation period ends.</li>
+        <li data-i18n="preflight.item1">DNSSEC: confirm the old provider is unsigned and no stale DS records exist.</li>
+        <li data-i18n="preflight.item2">CAA: confirm the target provider's certificate authorities are allowed.</li>
+        <li data-i18n="preflight.item3">Nameservers: verify the target provider's assigned pair for each zone.</li>
+        <li data-i18n="preflight.item4">Mail: MX, SPF, DKIM and DMARC records exist and match the current provider.</li>
+        <li data-i18n="preflight.item5">Validation records: do not delete _dnsauth, trust-provider or similar records without checking certificate dependencies.</li>
+        <li data-i18n="preflight.item6">Zone clock: free Cloudflare zones pending for more than 28 days are deleted — switch in time.</li>
+        <li data-i18n="preflight.item7">Rollback: keep the old provider's records until the observation period ends.</li>
       </ul>
     </div>
   </section>
 
   <footer class="foot">
-    <span>DNS Migrate · MVP</span>
-    <span>Runs entirely in your browser · No data leaves this page</span>
+    <span data-i18n="footer.left">DNS Migrate · MVP</span>
+    <span data-i18n="footer.right">Runs entirely in your browser · No data leaves this page</span>
   </footer>
 </main>
 

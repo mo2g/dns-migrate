@@ -1,0 +1,17 @@
+{
+  "name": "dns-migrate",
+  "version": "0.4.0",
+  "description": "Safe DNS migration toolkit — plan, diff, migrate and verify DNS zones",
+  "type": "module",
+  "bin": {
+    "dnsmigrate": "./cli/dnsmigrate.mjs"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mo2g/dns-migrate.git"
+  }
+}

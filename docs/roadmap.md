@@ -28,6 +28,6 @@
 
 ## Phase 4 — Product
 
-- [ ] CLI companion
-- [ ] Multi-zone / bulk migration
+- [x] CLI companion (`cli/dnsmigrate.mjs`: export / plan / apply / migrate)
+- [x] Multi-zone / bulk migration (CLI)
 - [ ] Multi-tenant MSP mode (paid)

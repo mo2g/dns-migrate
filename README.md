@@ -4,7 +4,7 @@ English | [中文](README.zh-CN.md)
 
 **Safe DNS migration toolkit** — plan, diff, migrate and verify DNS zones between providers.
 
-> Status: MVP + optional API mode (Cloudflare Pages Functions). Static mode works with zero backend.
+> Status: MVP + optional API mode (Pages Functions) + CLI with bulk migration.
 
 ## Why
 
@@ -32,6 +32,8 @@ DNS Migrate focuses on the **safety layer**: a readable diff report, a pre-fligh
 - Export a shareable HTML migration report (diff + warnings + checklist)
 - EN / 中文 interface switch
 - **API mode (optional, Pages Functions)**: read records directly from DNSPod (Tencent Cloud TC3) or Cloudflare, preview a dry-run plan, then apply to Cloudflare with explicit confirmation
+- **CLI companion** (`cli/dnsmigrate.mjs`): export / plan / apply / bulk migrate from the terminal
+- **Bulk migration**: migrate multiple domains in one command with a dry-run summary per zone
 - 100% client-side in file mode: no data leaves the browser, no API tokens involved
 
 ## Roadmap
@@ -57,6 +59,30 @@ python3 -m http.server 8080
 npx wrangler pages dev . --port 8788
 # open http://localhost:8788
 ```
+
+## CLI
+
+Node 18.17+ required. No dependencies.
+
+```bash
+# Export records to JSON (or BIND with --format bind)
+CF_API_TOKEN=... CF_ACCOUNT_ID=... \
+  node cli/dnsmigrate.mjs export --provider cloudflare --domain example.com --out records.json
+
+# Plan: read the source and print the semantic differences
+DNSPOD_SECRET_ID=... DNSPOD_SECRET_KEY=... \
+  node cli/dnsmigrate.mjs plan --source dnspod --domain example.com --target cloudflare
+
+# Apply (dry-run by default; add --yes to write)
+CF_API_TOKEN=... CF_ACCOUNT_ID=... \
+  node cli/dnsmigrate.mjs apply --target cloudflare --domain example.com --records records.json
+
+# Bulk migrate multiple domains (dry-run; add --yes to write)
+CF_API_TOKEN=... CF_ACCOUNT_ID=... DNSPOD_SECRET_ID=... DNSPOD_SECRET_KEY=... \
+  node cli/dnsmigrate.mjs migrate --source dnspod --target cloudflare --domains a.com,b.com
+```
+
+Credentials are read from environment variables only: `CF_API_TOKEN`, `CF_ACCOUNT_ID`, `DNSPOD_SECRET_ID`, `DNSPOD_SECRET_KEY`.
 
 ## Credentials & security
 

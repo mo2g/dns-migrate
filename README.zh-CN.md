@@ -4,7 +4,7 @@
 
 **安全的 DNS 迁移工具** —— 在 DNS 服务商之间规划、对比、迁移并验证 DNS 记录。
 
-> 状态：MVP + 可选 API 模式（Cloudflare Pages Functions）。文件模式无需后端。
+> 状态：MVP + 可选 API 模式（Pages Functions）+ 支持批量迁移的 CLI。
 
 ## 为什么做这个
 
@@ -32,6 +32,8 @@ DNS Migrate 关注的是**迁移安全层**：可读的差异报告、迁移前�
 - 导出可分享的 HTML 迁移报告（差异 + 警告 + 预检清单）
 - **中英文界面切换**
 - **API 模式（可选，Pages Functions）**：直接从 DNSPod（腾讯云 TC3）或 Cloudflare 读取记录，预演 dry-run 计划，确认后写入 Cloudflare
+- **CLI 工具**（`cli/dnsmigrate.mjs`）：在终端执行 export / plan / apply / 批量 migrate
+- **批量迁移**：一条命令迁移多个域名，逐域名输出 dry-run 摘要
 - 文件模式 100% 客户端运行：数据不离开浏览器，不需要任何 API Token
 
 ## 路线图
@@ -57,6 +59,30 @@ python3 -m http.server 8080
 npx wrangler pages dev . --port 8788
 # 打开 http://localhost:8788
 ```
+
+## CLI
+
+需要 Node 18.17+，无第三方依赖。
+
+```bash
+# 导出记录为 JSON（或加 --format bind 导出 BIND）
+CF_API_TOKEN=... CF_ACCOUNT_ID=... \
+  node cli/dnsmigrate.mjs export --provider cloudflare --domain example.com --out records.json
+
+# 计划：读取源并输出语义差异
+DNSPOD_SECRET_ID=... DNSPOD_SECRET_KEY=... \
+  node cli/dnsmigrate.mjs plan --source dnspod --domain example.com --target cloudflare
+
+# 写入（默认 dry-run；加 --yes 才真正执行）
+CF_API_TOKEN=... CF_ACCOUNT_ID=... \
+  node cli/dnsmigrate.mjs apply --target cloudflare --domain example.com --records records.json
+
+# 批量迁移（默认 dry-run；加 --yes 才写入）
+CF_API_TOKEN=... CF_ACCOUNT_ID=... DNSPOD_SECRET_ID=... DNSPOD_SECRET_KEY=... \
+  node cli/dnsmigrate.mjs migrate --source dnspod --target cloudflare --domains a.com,b.com
+```
+
+凭证只从环境变量读取：`CF_API_TOKEN`、`CF_ACCOUNT_ID`、`DNSPOD_SECRET_ID`、`DNSPOD_SECRET_KEY`。
 
 ## 凭证与安全
 

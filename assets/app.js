@@ -490,7 +490,7 @@ function analyzeMigration(records, targetKey) {
     }
 
     for (const r of items) {
-      if (r.ttl && r.ttl < 60) diffs.push({ level: "info", key: "diff.ttlLow", params: { name, type, ttl: r.ttl } });
+      if (r.ttl && r.ttl > 1 && r.ttl < 60) diffs.push({ level: "info", key: "diff.ttlLow", params: { name, type, ttl: r.ttl } });
     }
   }
 

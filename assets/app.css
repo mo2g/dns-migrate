@@ -1,0 +1,57 @@
+:root{
+  --bg:#f5f6f8;--card:#fff;--text:#1f2937;--muted:#6b7280;--line:#e5e7eb;
+  --blue:#2563eb;--green:#15803d;--amber:#b45309;--red:#b91c1c;--chip:#eef2ff;
+  --shadow:0 1px 3px rgba(0,0,0,.08);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.hero{background:#111827;color:#fff;padding:34px 20px 30px}
+.hero-in{max-width:1080px}
+.brand{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#93c5fd;font-weight:700}
+.hero h1{font-size:26px;margin:6px 0 8px;font-weight:700}
+.tagline{max-width:720px;margin:0;color:#d1d5db;font-size:13.5px}
+.badges{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+.badge{background:#1f2937;border:1px solid #374151;border-radius:99px;padding:3px 10px;font-size:11.5px;color:#e5e7eb}
+.wrap{max-width:1080px;margin:0 auto;padding:0 20px}
+main.wrap{padding-top:20px;padding-bottom:40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);margin-bottom:16px;overflow:clip}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--line);background:#f9fafb}
+.card-head h2{margin:0;font-size:15.5px}
+.card-head .sub{font-size:12.5px;color:var(--muted);margin-top:2px}
+.card-body{padding:16px 18px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+textarea{width:100%;min-height:220px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;background:#fcfcfd;color:var(--text)}
+textarea:focus,input:focus,select:focus{outline:2px solid #bfdbfe;border-color:#60a5fa}
+button{border:0;border-radius:7px;padding:9px 14px;background:var(--blue);color:#fff;cursor:pointer;font:inherit;font-size:13px}
+button:hover{filter:brightness(.96)}
+button.secondary{background:#e5e7eb;color:#111827}
+.filebtn{background:#e5e7eb;color:#111827;border-radius:7px;padding:9px 14px;cursor:pointer;font-size:13px}
+.filebtn input{display:none}
+.actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.state{font-size:12.5px;color:var(--muted)}
+.state.ok{color:var(--green)}
+.state.err{color:var(--red)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+.stat{background:#f9fafb;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.stat b{display:block;font-size:20px}
+.stat span{font-size:11.5px;color:var(--muted)}
+.warnings{margin:6px 0 12px}
+.warnitem{background:#fffbeb;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12.5px;margin-bottom:6px}
+.warnitem.error{background:#fef2f2;border-color:#fca5a5;color:#991b1b}
+.table-tools{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.table-tools input,.table-tools select{border:1px solid var(--line);border-radius:7px;padding:8px 10px;background:#fff;font:inherit;font-size:13px}
+.table-tools input{flex:1;min-width:220px}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:12.5px;min-width:720px}
+th{text-align:left;font-size:11.5px;color:var(--muted);background:#fcfcfd;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all}
+tr:last-child td{border-bottom:0}
+td.type{color:#3730a3;font-weight:600}
+td.note{font-family:inherit;color:var(--muted);font-size:12px}
+.hint{font-size:12px;color:var(--muted);margin:10px 0 0}
+.checklist{margin:0;padding-left:20px}
+.checklist li{margin:6px 0;font-size:13px}
+.checklist code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:#f3f4f6;border-radius:4px;padding:1px 5px}
+.foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);padding:8px 2px}
+@media(max-width:720px){.stats{grid-template-columns:repeat(2,1fr)}.hero h1{font-size:22px}}
